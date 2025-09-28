@@ -1,0 +1,5 @@
+{
+  "default_llm": "gpt-4",
+  "memory_provider": "vectordb",
+  "voice_enabled": false
+}

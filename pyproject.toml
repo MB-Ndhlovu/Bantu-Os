@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "bantu-os"
+version = "0.1.0"
+description = "Bantu OS: An AI-powered operating system"
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+packages = [{ include = "bantu_os" }]
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.13"
+aiohttp = "^3.9.5"
+numpy = "^1.26.0"
+pydantic = "^1.10.15"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+
+[tool.poetry.scripts]
+bantu = "bantu_os.interface.cli.shell:run_shell"
+
+[build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"
