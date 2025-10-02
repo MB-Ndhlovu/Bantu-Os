@@ -2,7 +2,6 @@
 
 🌍 Bantu OS  An AI-Native Personal Operating System
 
-“The people who are crazy enough to think they can change the world are the ones who do.” – Steve Jobs
 
 Bantu OS is not just another operating system.
 It’s a vision for the future: an AI-first, African-born OS designed to reimagine how humans interact with technology.
