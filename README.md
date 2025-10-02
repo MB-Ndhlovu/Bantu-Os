@@ -1,6 +1,6 @@
 
 
-🌍 Bantu OS — An AI-Native Personal Operating System
+🌍 Bantu OS  An AI-Native Personal Operating System
 
 “The people who are crazy enough to think they can change the world are the ones who do.” – Steve Jobs
 
@@ -49,13 +49,13 @@ Be part of a historic moment: an African-born OS challenging the giants.
 
 Every contributor gets recognition, ownership, and the chance to shape something far bigger than any one of us.
 
-If you ever wanted to work on the next Linux, the next iOS, the next Android — this is your chance.
+If you ever wanted to work on the next Linux, the next iOS, the next Android  this is your chance.
 
 💰 Why Investors Should Care
 
 Investing in Bantu OS means:
 
-Owning the next platform shift — OS is the most defensible layer in tech.
+Owning the next platform shift  OS is the most defensible layer in tech.
 
 Africa-first, global scale → The fastest-growing digital market on Earth.
 
@@ -93,13 +93,11 @@ Developers:
 
 Fork this repo & explore the issues.
 
-Join our community: [Discord Invite Link]
-
 Help shape the OS of the future.
 
 Investors & Partners:
 
-Contact us: bantuos@proton.me
+Contact us: malibongwendhlovu05@gmail.com
 
 Request the pitch deck.
 
@@ -112,7 +110,7 @@ That Africa can lead in innovation.
 
 That operating systems can be reimagined for the AI era.
 
-That a personal AI can — and should — be the center of your digital life.
+That a personal AI can and should — be the center of your digital life.
 
 This is the future.
 We’re building it now.
