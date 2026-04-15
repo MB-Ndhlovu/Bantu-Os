@@ -85,7 +85,7 @@ class SchedulingAgent:
 
 # -------------------- Simple natural time parsing --------------------
 AMPM = re.compile(r"\b(?P<hour>1[0-2]|0?[1-9])\s*(?P<ampm>am|pm)\b", re.IGNORECASE)
-HHMM = re.compile(r"\b(?P<hour>\d{1,2}):(?(?=\d{2})\d{2})\b")
+HHMM = re.compile(r"\b(?P<hour>\d{1,2}):(?P<minute>\d{2})\b")
 IN_X = re.compile(r"\bin\s+(?P<num>\d+)\s+(?P<unit>minute|minutes|hour|hours)\b", re.IGNORECASE)
 DATE_TIME = re.compile(r"\b(?P<date>\d{4}-\d{2}-\d{2})\s+(?P<time>\d{1,2}:\d{2})\b")
 
