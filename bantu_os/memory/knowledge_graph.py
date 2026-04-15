@@ -96,6 +96,10 @@ class KnowledgeGraph:
                     if node.type != value:
                         match = False
                         break
+                elif key == 'id':
+                    if node.id != value:
+                        match = False
+                        break
                 elif key in node.properties:
                     if node.properties[key] != value:
                         match = False
