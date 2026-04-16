@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache Poetry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: poetry-${{ hashFiles('pyproject.toml') }}
+          restore-keys: poetry-
+
+      - name: Install dependencies
+        run: |
+          poetry install --with dev
+
+      - name: Run tests with pytest
+        run: poetry run pytest tests/ --cov=bantu_os --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: poetry install --with dev
+
+      - name: Run Ruff linter
+        run: |
+          poetry run pip install ruff
+          poetry run ruff check bantu_os/ tests/
+
+  cargo-check:
+    name: Cargo Check
+    runs-on: ubuntu-latest
+    container: ghcr.io/rust-lang/rust:latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check Rust code
+        run: |
+          if [ -d "bantu_os/rust_core" ]; then
+            cd bantu_os/rust_core
+            cargo check
+          else
+            echo "No Rust project found, skipping"
+          fi
+
+  gcc-build:
+    name: GCC Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install GCC
+        run: |
+          apt-get update && apt-get install -y gcc make
+
+      - name: Build C components
+        run: |
+          if [ -d "bantu_os/c_core" ]; then
+            cd bantu_os/c_core
+            make CC=gcc
+          else
+            echo "No C project found, skipping"
+          fi
