@@ -1,107 +1,137 @@
-//! Bantu-OS AI Shell - Rust REPL for tool dispatch
-//! 
-//! Layer 2 of Bantu-OS: replaces bash as the primary interface.
-//! Receives natural language commands, parses them, dispatches to system tools.
+//! Bantu-OS Shell — AI REPL
+//! Layer 2: Rust shell connecting to Layer 3 Python AI engine.
+
+use std::io::{self, Write};
+use std::process::{Command, Stdio};
 
 mod parser;
 mod tools;
 
-use parser::parse;
-use tools::ToolRegistry;
-use std::process::{Command, Stdio};
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Bantu-OS Shell — AI-native command interface");
-    println!("Type natural language commands or traditional shell syntax.\n");
+    println!("Bantu-OS Shell v0.1.0 — AI-powered REPL");
+    println!("Type 'help' for commands, or chat naturally with the AI.\n");
 
-    let mut rl = rustyline::Editor::<(), _>::new()?;
-    let history_path = "/tmp/bantu_shell_history";
-    let _ = rl.load_history(history_path);
-    let registry = ToolRegistry::new();
+    let registry = tools::ToolRegistry::new();
+    let mut ai_mode = false;
 
     loop {
-        let readline = rl.readline("bantu> ");
-        match readline {
-            Ok(line) => {
-                if let Err(e) = process_input(&line, &registry) {
-                    eprintln!("Error: {}", e);
+        let prompt = if ai_mode { "bantu-ai> " } else { "bantu> " };
+        print!("{}", prompt);
+        std::io::stdout().flush()?;
+
+        let mut line = String::new();
+        if std::io::stdin().read_line(&mut line).is_err() {
+            break;
+        }
+
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        if trimmed == "exit" || trimmed == "quit" {
+            println!("Goodbye from Bantu-OS.");
+            break;
+        }
+
+        if trimmed == "ai" || trimmed == "ai on" {
+            ai_mode = true;
+            println!("AI mode enabled. Chat naturally or type 'ai off' to return to shell mode.");
+            continue;
+        }
+
+        if trimmed == "ai off" {
+            ai_mode = false;
+            println!("Shell mode restored.");
+            continue;
+        }
+
+        if ai_mode {
+            handle_ai_input(trimmed);
+        } else {
+            handle_shell_input(trimmed, &registry);
+        }
+    }
+
+    Ok(())
+}
+
+fn handle_shell_input(input: &str, registry: &tools::ToolRegistry) {
+    match parser::parse(input) {
+        Ok(call) => {
+            match registry.execute(&call.tool, &call.args) {
+                Ok(output) => println!("{}", output),
+                Err(e) => eprintln!("Error: {:?}", e),
+            }
+        }
+        Err(_) => {
+            let output = Command::new("sh")
+                .arg("-c")
+                .arg(input)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .output();
+            match output {
+                Ok(out) => {
+                    if out.status.success() {
+                        print!("{}", String::from_utf8_lossy(&out.stdout));
+                    } else {
+                        eprint!("{}", String::from_utf8_lossy(&out.stderr));
+                    }
                 }
-                let _ = rl.add_history_entry(line.trim());
-            }
-            Err(rustyline::error::ReadlineError::Interrupted) => {
-                println!("^C");
-                continue;
-            }
-            Err(rustyline::error::ReadlineError::Eof) => {
-                println!("Goodbye.");
-                break;
-            }
-            Err(e) => {
-                eprintln!("Error: {:?}", e);
-                break;
+                Err(e) => eprintln!("Could not execute: {}", e),
             }
         }
     }
-
-    let _ = rl.save_history(history_path);
-    Ok(())
 }
 
-fn process_input(input: &str, registry: &ToolRegistry) -> Result<(), String> {
-    let trimmed = input.trim();
-    if trimmed.is_empty() {
-        return Ok(());
+fn handle_ai_input(input: &str) {
+    let socket_path = "/tmp/bantu.sock";
+    let mut sock = std::os::unix::net::UnixStream::connect(socket_path).ok();
+    if sock.is_none() {
+        // Fall back to subprocess if socket is not available
+        handle_ai_subprocess(input);
+        return;
     }
-
-    // Handle built-in commands
-    match trimmed {
-        "exit" | "quit" => {
-            println!("Goodbye.");
-            std::process::exit(0);
+    let sock = sock.unwrap();
+    let request = serde_json::json!({"cmd": "ai", "text": input});
+    let msg = serde_json::to_string(&request).unwrap();
+    let mut sock = sock;
+    use std::io::{Read, Write};
+    sock.write_all(msg.as_bytes()).unwrap();
+    sock.write_all(b"\n").unwrap();
+    let mut response = String::new();
+    sock.read_to_string(&mut response).unwrap();
+    if let Ok(resp) = serde_json::from_str::<serde_json::Value>(&response) {
+        if resp["ok"].as_bool() == Some(true) {
+            println!("{}", resp["result"].as_str().unwrap_or("(no response)"));
+        } else {
+            println!("AI error: {}", resp["error"].as_str().unwrap_or("unknown"));
         }
-        "help" => {
-            print_registry_help(registry);
-            return Ok(());
-        }
-        _ => {}
+    } else {
+        println!("AI: (invalid response)");
     }
-
-    // Parse natural language to tool call
-    let tool_call = parse(trimmed)?;
-    
-    // Execute via registry or fallback to shell
-    match registry.execute(&tool_call.tool, &tool_call.args) {
-        Ok(output) => {
-            if !output.is_empty() {
-                println!("{}", output);
-            }
-        }
-        Err(e) => {
-            // Fallback: try as raw shell command
-            let status = Command::new(trimmed)
-                .stdout(Stdio::inherit())
-                .stderr(Stdio::inherit())
-                .status();
-            if let Err(e) = status {
-                eprintln!("bantu: {}", e);
-            }
-        }
-    }
-    Ok(())
 }
 
-fn print_registry_help(registry: &ToolRegistry) {
-    println!("Bantu-OS Shell Commands:");
-    println!("  exit/quit  — exit shell");
-    println!("  help       — show this help");
-    println!();
-    println!("Tool commands:");
-    for tool in registry.list_tools() {
-        println!("  {:12} — {}", tool.name, tool.description);
+fn handle_ai_subprocess(input: &str) {
+    let script = format!(
+        "cd /home/workspace/bantu_os && python3 -c \"\nimport sys\nfrom bantu_os.core.kernel import Kernel\nimport asyncio\nk = Kernel()\nresult = asyncio.run(k.process_input('{}'))\nprint(result)\n\"",
+        input.replace('\'', "'\\''")
+    );
+    let output = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(&script)
+        .output();
+    match output {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            if stdout.trim().is_empty() && !stderr.trim().is_empty() {
+                println!("(AI: {})", stderr.trim());
+            } else {
+                println!("{}", stdout.trim());
+            }
+        }
+        Err(e) => println!("AI unavailable: {}", e),
     }
-    println!();
-    println!("Examples:");
-    println!("  list files in current directory");
-    println!("  show running processes");
-    println!("  cat /etc/hostname");
 }

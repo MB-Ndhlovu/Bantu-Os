@@ -103,9 +103,11 @@ Bantu-OS/
 ### Prerequisites
 
 - Linux (Debian/Ubuntu-based)
-- Python 3.10+
+- Python 3.10+ with `venv`
 - Rust 1.70+
 - GCC
+- Git
+- Docker (optional, for containerized build)
 
 ### Build & Run
 
@@ -114,15 +116,46 @@ Bantu-OS/
 git clone https://github.com/MB-Ndhlovu/Bantu-Os.git
 cd Bantu-Os
 
+# One-command setup (installs all Python dependencies)
+make install
+
+# Build all layers using the root Makefile
+make build        # Python package
+
 # Layer 1: Build C init system
 cd init && make
 
 # Layer 2: Build Rust shell
 cd ../shell && cargo build --release
 
-# Layer 3 & 4: Install Python dependencies
-cd .. && pip install -e .
+# Back to root
+cd ..
+
+# Verify everything works
+make test         # Run Python test suite
+./shell/target/release/bantu  --help  2>/dev/null && echo "Rust shell: OK"
+python -c "import bantu_os; print('Python engine: OK')"  # Verify Python import
 ```
+
+### Docker (Optional)
+
+```bash
+# Build Docker image
+make docker-build
+
+# Run inside container
+make docker-run
+```
+
+### Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `poetry: command not found` | `pip install poetry` |
+| Rust build fails | `rustup update && rustup default stable` |
+| GCC compilation errors | `apt install build-essential` |
+| Python import fails | `make install` to reinstall dependencies |
+| Tests fail | Check Python version is 3.10+ with `python3 --version` |
 
 ---
 
