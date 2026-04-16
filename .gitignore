@@ -21,3 +21,4 @@ dist/
 # Data/Logs
 logs/
 data/
+target/
