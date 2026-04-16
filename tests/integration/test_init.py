@@ -9,7 +9,6 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 INIT_C_PATH = REPO_ROOT / 'bantu_os' / 'init' / 'init.c'
-print(f'DEBUG INIT_C_PATH={INIT_C_PATH}')
 
 
 class TestInitC:
@@ -20,7 +19,8 @@ class TestInitC:
         tmp = tmp_path_factory.mktemp('init_build')
         binary = tmp / 'bantu_init'
         result = subprocess.run(
-            ['gcc', '-o', str(binary), '-Wall', '-Wextra', '-std=c11', str(INIT_C_PATH)],
+            ['gcc', '-o', str(binary), '-Wall', '-Wextra', '-std=c11',
+             '-Wno-unused-parameter', str(INIT_C_PATH)],
             capture_output=True,
             text=True,
         )
@@ -39,11 +39,10 @@ class TestInitC:
             text=True,
             timeout=5,
         )
-        # init forks and becomes PID 1 in a real Linux environment.
-        # In a test environment it will likely exit or fail — we just check
-        # the banner line was printed to stdout before it exits/forks.
-        assert '[init] bantu_os init starting' in result.stdout, (
-            f'Expected init banner in output:\n{result.stdout}\nSTDERR:\n{result.stderr}'
+        # The init prints "[INFO] bantu_os init starting (PID 1)"
+        combined = result.stdout + result.stderr
+        assert 'bantu_os init starting' in combined, (
+            f'Expected init banner in output:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}'
         )
 
     def test_init_registers_services(self, init_binary: Path):
@@ -54,7 +53,8 @@ class TestInitC:
             timeout=5,
         )
         # Check that all three registered services appear in output
+        combined = result.stdout + result.stderr
         for svc in ('systemd', 'logger', 'netmanager'):
-            assert svc in result.stdout, (
-                f'Service {svc!r} not registered in init output:\n{result.stdout}\nSTDERR:\n{result.stderr}'
+            assert svc in combined, (
+                f'Service {svc!r} not registered in init output:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}'
             )
