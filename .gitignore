@@ -22,3 +22,6 @@ dist/
 logs/
 data/
 target/
+*.o
+*.pyc
+__pycache__/
