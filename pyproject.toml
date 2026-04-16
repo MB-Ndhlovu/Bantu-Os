@@ -1,23 +1,61 @@
 [tool.poetry]
-name = "bantu-os"
-version = "0.1.0"
-description = "Bantu OS: An AI-powered operating system"
-authors = ["Your Name <you@example.com>"]
-readme = "README.md"
-packages = [{ include = "bantu_os" }]
+name = 'bantu-os'
+version = '0.1.0'
+description = 'Bantu OS: An AI-powered operating system'
+authors = ['Your Name <you@example.com>']
+readme = 'README.md'
+packages = [{ include = 'bantu_os' }]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.13"
-aiohttp = "^3.9.5"
-numpy = "^1.26.0"
-pydantic = "^1.10.15"
+python = '>=3.9,<3.13'
+aiohttp = '^3.9.5'
+numpy = '^1.26.0'
+pydantic = '^1.10.15'
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.0.0"
+pytest = '^8.0.0'
+pytest-asyncio = '^0.24.0'
+pytest-cov = '^5.0.0'
 
 [tool.poetry.scripts]
-bantu = "bantu_os.interface.cli.shell:run_shell"
+bantu = 'bantu_os.interface.cli.shell:run_shell'
 
 [build-system]
-requires = ["poetry-core>=1.8.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ['poetry-core>=1.8.0']
+build-backend = 'poetry.core.masonry.api'
+
+[tool.pytest.ini_options]
+testpaths = ['tests']
+norecursedirs = ['onyx-main', 'onyx-main/*']
+asyncio_mode = 'auto'
+asyncio_default_fixture_loop_scope = 'function'
+filterwarnings = [
+    'ignore::DeprecationWarning',
+]
+addopts = '-q --tb=short'
+
+[tool.coverage.run]
+branch = true
+source = ['bantu_os']
+omit = [
+    'bantu_os/__main__.py',
+    'onyx-main/*',
+    'onyx-main/**',
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    'pragma: no cover',
+    'def __repr__',
+    'raise NotImplementedError',
+    'if __name__ == .__main__.:',
+    'if TYPE_CHECKING:',
+    '@abstractmethod',
+]
+fail_under = 60
+
+[tool.coverage.html]
+directory = 'htmlcov'
