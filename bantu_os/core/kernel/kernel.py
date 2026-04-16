@@ -166,3 +166,48 @@ class Kernel:
         if name not in self.tools:
             raise KeyError(f"Tool not found: {name}")
         return self.tools[name](**kwargs)
+
+    async def use_tool_async(self, name: str, /, **kwargs: Any) -> Any:
+        """Invoke a registered tool by name, awaiting if it is a coroutine.
+
+        This is the async counterpart to ``use_tool``.  It detects whether
+        the registered callable is async and awaits it accordingly.
+        Raises ``KeyError`` if the tool is not registered.
+        """
+        if name not in self.tools:
+            raise KeyError(f"Tool not found: {name}")
+        result = self.tools[name](**kwargs)
+        if hasattr(result, "__await__"):
+            return await result
+        return result
+
+    async def run_tool_calls(
+        self, calls: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Execute a list of tool calls and return outcomes.
+
+        ``calls`` is a list of dicts with required key ``name`` and
+        optional key ``args`` (a dict of keyword arguments).
+
+        Returns a parallel list of dicts:
+            ``{"name": <str>, "result": <Any>}``  on success
+            ``{"name": <str>, "error": <str>}``  on failure
+
+        Example::
+
+            calls = [{"name": "echo", "args": {"value": "ping"}}]
+            outcomes = await kernel.run_tool_calls(calls)
+        """
+        outcomes = []
+        for call in calls:
+            name = call.get("name", "")
+            args = call.get("args", {})
+            try:
+                raw = self.tools[name](**args)
+                resolved = await raw if hasattr(raw, "__await__") else raw
+                outcomes.append({"name": name, "result": resolved})
+            except KeyError:
+                outcomes.append({"name": name, "error": f"Tool not found: {name}"})
+            except Exception as exc:
+                outcomes.append({"name": name, "error": str(exc)})
+        return outcomes
