@@ -9,6 +9,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 INIT_C_PATH = REPO_ROOT / 'bantu_os' / 'init' / 'init.c'
+print(f'DEBUG INIT_C_PATH={INIT_C_PATH}')
 
 
 class TestInitC:
