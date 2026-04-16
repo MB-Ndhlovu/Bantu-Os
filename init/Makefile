@@ -1,27 +1,25 @@
+# Bantu-OS Init System Makefile
+
 CC = gcc
-CFLAGS = -Wall -Wextra -pedantic -std=c11 -O2
-TARGET = bantu_init
-SRC = init.c
+CFLAGS = -Wall -Wextra -g
+LDFLAGS = -static
 
-.PHONY: all clean install check
+INIT_BINARY = bantu-init
 
-all: $(TARGET)
+.PHONY: all clean test install
 
-$(TARGET): $(SRC)
-	$(CC) $(CFLAGS) -o $@ $<
+all: $(INIT_BINARY)
+
+$(INIT_BINARY): init.c services.c services.h
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ init.c services.c
+	@echo \"Built: $@\"
 
 clean:
-	rm -f $(TARGET)
+	rm -f $(INIT_BINARY)
 
-install: $(TARGET)
-	cp $(TARGET) /sbin/bantu_init
-	chmod +x /sbin/bantu_init
+test:
+	cd tests && $(MAKE) run-tests
 
-check: $(TARGET)
-	@echo "Running basic checks..."
-	@if [ ! -x $(TARGET) ]; then echo "FAIL: Binary not built"; exit 1; fi
-	@echo "Binary size:"
-	@ls -lh $(TARGET)
-	@echo "Symbol table:"
-	@nm -s $(TARGET) | head -20
-	@echo "OK: $(TARGET) built successfully"
+install: $(INIT_BINARY)
+	install -D -m 755 $(INIT_BINARY) ../initramfs/bantu-init
+	@echo \"Installed to initramfs/bantu-init\"
