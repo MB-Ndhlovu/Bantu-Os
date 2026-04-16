@@ -237,6 +237,139 @@ Any of the following triggers automatic rejection:
 
 ---
 
+## IPC Security: Rust Shell ↔ Python Engine Communication
+
+### Communication Channel
+
+The Rust shell and Python AI engine communicate via **Unix domain sockets** with a simple JSON-based protocol. This avoids network exposure while enabling high-performance IPC.
+
+```
+┌─────────────────┐      Unix Socket (AF_UNIX)      ┌─────────────────┐
+│   Rust Shell    │ ◄──── JSON-RPC 2.0 over AF_UNIX ──► │  Python Engine  │
+│   (shell/src)   │         SOCK_SEQPACKET            │  (bantu_os/)    │
+└─────────────────┘                                    └─────────────────┘
+```
+
+### Security Properties
+
+| Property | Mechanism |
+|----------|-----------|
+| **Authentication** | Abstract socket namespace (process-local, not filesystem-exposed) |
+| **Integrity** | JSON-RPC 2.0 with sequence numbers |
+| **Confidentiality** | Optional: TLS-over-socket for sensitive deployments |
+| **Rate Limiting** | Request queuing with timeout (30s default) |
+| **Message Size** | Max 16MB per message (configurable) |
+
+### Message Schema
+
+All IPC messages follow JSON-RPC 2.0:
+
+```json
+// Request
+{
+  "jsonrpc": "2.0",
+  "method": "tool_execute",
+  "params": {
+    "tool": "filesystem.read",
+    "args": {"path": "/workspace/notes.txt"}
+  },
+  "id": 1
+}
+
+// Response
+{
+  "jsonrpc": "2.0",
+  "result": {"status": "ok", "data": "..."},
+  "id": 1
+}
+
+// Error
+{
+  "jsonrpc": "2.0", 
+  "error": {"code": -32600, "message": "Invalid Request"},
+  "id": 1
+}
+```
+
+### Tool Dispatch Protocol
+
+1. **Registration**: On startup, Python engine registers available tools with Rust shell
+2. **Discovery**: Rust shell queries tool list before offering options to AI
+3. **Execution**: AI selects tool → Rust forwards request → Python executes → Rust returns result
+4. **Authorization**: Certain tools flagged as `require_confirmation=True` → Rust shell prompts user
+
+### Threat Mitigations
+
+| Threat | Mitigation |
+|--------|------------|
+| Socket hijacking | Abstract sockets (Linux kernel enforced) |
+| Message injection | JSON schema validation before parsing |
+| Denial of service | Message queue depth limit (100 pending) |
+| Memory exhaustion | Per-message size limit (16MB) |
+
+---
+
+## Boot Integrity
+
+### Boot Chain
+
+Bantu-OS boot integrity is inherited from the Linux kernel boot chain. The init component (C) is the first userspace process (PID 1).
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                     BOOT CHAIN                               │
+├──────────────────────────────────────────────────────────────┤
+│                                                               │
+│  MBR/UEFI Firmware ──► Linux Kernel ──► init (C, PID 1)      │
+│                                        │                      │
+│                                        ▼                      │
+│                              Service Registry (services/)   │
+│                                        │                      │
+│                                        ▼                      │
+│                              Rust Shell (shell/)             │
+│                                        │                      │
+│                                        ▼                      │
+│                              Python AI Engine (bantu_os/)    │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Integrity Guarantees
+
+| Component | Guarantee | Mechanism |
+|-----------|-----------|-----------|
+| Kernel | Signed kernel image | UEFI Secure Boot (when enabled) |
+| init | Verifiable source | Compiled from source in `init/init.c` |
+| Services | Restart policy | init.c monitors and respawns |
+| Shell | Integrity check | Rust compile-time safety |
+| AI Engine | Code signing | Future: signed Python packages |
+
+### Hardening Measures
+
+1. **init.c** (PID 1):
+   - No dynamic library loading at runtime
+   - Minimal syscall surface
+   - Signal handling for clean shutdown
+
+2. **Rust Shell**:
+   - Memory-safe language (no buffer overflows, use-after-free)
+   - Strict compile-time checks (`cargo clippy`)
+   - No `unsafe` blocks in hot paths
+
+3. **Python AI Engine**:
+   - No `eval()` or `exec()` with user-controlled input
+   - Sandboxed tool execution via subprocess
+   - Resource limits on all operations
+
+### Future Enhancements
+
+- [ ] Measured Boot with TPM 2.0
+- [ ] dm-verity for filesystem integrity
+- [ ] IMA/EVM for Linux integrity subsystem
+- [ ] Signed Python wheel packages
+
+---
+
 ## Incident Response
 
 ### Suspected Compromise Actions
