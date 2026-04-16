@@ -113,7 +113,7 @@ impl ToolRegistry {
     fn execute_cd(&self, args: &[String]) -> Result<String, ToolError> {
         let path = args.first().ok_or_else(|| ToolError::InvalidArgs("Expected directory path".to_string()))?;
         std::env::set_current_dir(path).map_err(|e| ToolError::ExecutionFailed(e.to_string()))?;
-        Ok(format!("Changed directory to {}", path))
+        std::env::current_dir().map(|p| p.display().to_string()).map_err(|e| ToolError::ExecutionFailed(e.to_string()))
     }
 
     fn execute_mkdir(&self, args: &[String]) -> Result<String, ToolError> {

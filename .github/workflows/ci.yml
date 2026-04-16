@@ -38,6 +38,9 @@ jobs:
       - name: Rust compilation check
         run: cd shell && cargo check
 
+      - name: Rust tests
+        run: cd shell && cargo test --lib --tests
+
   test:
     runs-on: ubuntu-latest
     needs: build
