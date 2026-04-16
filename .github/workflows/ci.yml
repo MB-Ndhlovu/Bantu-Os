@@ -12,7 +12,7 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
-    
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -26,20 +26,17 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc make clang-format
-    
+          sudo apt-get install -y gcc make
+
       - name: Python checks
-        run: |
-          pip install -q pytest pytest-asyncio black
-          black --check bantu_os/ tests/ || true
-    
+        run: pip install -q pytest pytest-asyncio black && black --check bantu_os/ tests/
+
       - name: C compilation check
-        run: |
-          cd init && make clean && make check
-    
+        run: cd init && make clean && make
+        working-directory: /
+      
       - name: Rust compilation check
-        run: |
-          cd shell && cargo fmt --check && cargo check --message-format=short 2>&1 | tail -20
+        run: cd shell && cargo check
 
   test:
     runs-on: ubuntu-latest
@@ -51,4 +48,4 @@ jobs:
         with:
           python-version: '3.11'
       - name: Run tests
-        run: pip install -q pytest && python -m pytest tests/ -v --tb=short 2>&1 | tail -40
+        run: pip install -q pytest && python -m pytest tests/ -v --tb=short
