@@ -1,123 +1,122 @@
-"""
-Knowledge Graph - Represents and reasons about relationships between entities.
-"""
-from typing import Dict, List, Set, Optional, Any
-from dataclasses import dataclass
+# SPDX-License-Identifier: MIT
+# Bantu-OS Memory Module — Knowledge Graph
+# Simple dict-based graph: add_node(), add_edge(), query()
 
-@dataclass
-class Node:
-    """Represents a node in the knowledge graph."""
-    id: str
-    type: str
-    properties: Dict[str, Any]
+from typing import Dict, List, Any, Optional
 
-@dataclass
-class Edge:
-    """Represents a relationship between nodes in the knowledge graph."""
-    source_id: str
-    target_id: str
-    relationship: str
-    properties: Dict[str, Any] = None
 
 class KnowledgeGraph:
-    """In-memory knowledge graph implementation."""
-    
     def __init__(self):
-        self.nodes: Dict[str, Node] = {}
-        self.edges: List[Edge] = []
-        self.node_edges: Dict[str, List[Edge]] = {}
-    
-    def add_node(self, node_id: str, node_type: str, properties: Dict[str, Any] = None) -> Node:
-        """Add a node to the knowledge graph."""
+        self.nodes: Dict[str, Dict[str, Any]] = {}
+        self.edges: List[Dict[str, Any]] = []
+
+    def add_node(
+        self,
+        node_id: str,
+        node_type: str = None,
+        properties: Dict[str, Any] = None,
+    ) -> Dict[str, Any]:
+        props = properties or {}
+        if node_type is not None:
+            props = {**props, _node_type_key(): node_type}
+
         if node_id in self.nodes:
-            # Update existing node
-            self.nodes[node_id].properties.update(properties or {})
+            self.nodes[node_id].update(props)
         else:
-            # Create new node
-            self.nodes[node_id] = Node(
-                id=node_id,
-                type=node_type,
-                properties=properties or {}
-            )
-            self.node_edges[node_id] = []
+            self.nodes[node_id] = props
+
         return self.nodes[node_id]
-    
+
     def add_edge(
         self,
         source_id: str,
         target_id: str,
         relationship: str,
-        properties: Dict[str, Any] = None
-    ) -> Edge:
-        """Add a relationship between two nodes."""
-        if source_id not in self.nodes or target_id not in self.nodes:
-            raise ValueError("Both source and target nodes must exist")
-            
-        edge = Edge(
-            source_id=source_id,
-            target_id=target_id,
-            relationship=relationship,
-            properties=properties or {}
-        )
+        properties: Dict[str, Any] = None,
+    ) -> Dict[str, Any]:
+        if source_id not in self.nodes:
+            raise ValueError(f'Node not found: {source_id}')
+        if target_id not in self.nodes:
+            raise ValueError(f'Node not found: {target_id}')
+
+        edge = {
+            _src_key(): source_id,
+            _tgt_key(): target_id,
+            _rel_key(): relationship,
+            **(properties or {}),
+        }
         self.edges.append(edge)
-        self.node_edges[source_id].append(edge)
-        self.node_edges[target_id].append(edge)
         return edge
-    
-    def get_node(self, node_id: str) -> Optional[Node]:
-        """Get a node by ID."""
-        return self.nodes.get(node_id)
-    
-    def get_related_nodes(
+
+    def query(
         self,
-        node_id: str,
-        relationship: str = None
-    ) -> List[Node]:
-        """Get nodes related to the given node, optionally filtered by relationship."""
-        if node_id not in self.node_edges:
-            return []
-            
-        related_nodes = []
-        for edge in self.node_edges[node_id]:
-            if relationship is None or edge.relationship == relationship:
-                other_id = edge.target_id if edge.source_id == node_id else edge.source_id
-                if other_id in self.nodes:
-                    related_nodes.append(self.nodes[other_id])
-        
-        return related_nodes
-    
-    def query(self, pattern: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Query the knowledge graph for nodes matching the given pattern."""
+        node_type: str = None,
+        relationship: str = None,
+        direction: str = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
         results = []
-        for node in self.nodes.values():
-            match = True
-            for key, value in pattern.items():
-                if key == 'type':
-                    if node.type != value:
-                        match = False
-                        break
-                elif key == 'id':
-                    if node.id != value:
-                        match = False
-                        break
-                elif key in node.properties:
-                    if node.properties[key] != value:
-                        match = False
-                        break
-                else:
-                    match = False
-                    break
-            
-            if match:
-                results.append({
-                    'node': node,
-                    'relationships': [
-                        {
-                            'edge': edge,
-                            'direction': 'out' if edge.source_id == node.id else 'in'
-                        }
-                        for edge in self.node_edges[node.id]
-                    ]
-                })
-        
+        for edge in self.edges:
+            if relationship and edge.get(_rel_key()) != relationship:
+                continue
+
+            src = edge.get(_src_key())
+            tgt = edge.get(_tgt_key())
+
+            if direction == _dir_out():
+                node_id = src
+            elif direction == _dir_in():
+                node_id = tgt
+            else:
+                node_id = src
+
+            if node_id not in self.nodes:
+                continue
+
+            node_props = self.nodes[node_id]
+            if node_type and node_props.get(_node_type_key()) != node_type:
+                continue
+
+            results.append({
+                **node_props,
+                _node_id_key(): node_id,
+                _edge_key(): edge,
+            })
+
+            if len(results) >= limit:
+                break
+
         return results
+
+
+# Module-level key constants
+def _node_id_key() -> str:
+    return 'node_id'
+
+
+def _node_type_key() -> str:
+    return 'node_type'
+
+
+def _src_key() -> str:
+    return 'source_id'
+
+
+def _tgt_key() -> str:
+    return 'target_id'
+
+
+def _rel_key() -> str:
+    return 'relationship'
+
+
+def _edge_key() -> str:
+    return 'edge'
+
+
+def _dir_out() -> str:
+    return 'out'
+
+
+def _dir_in() -> str:
+    return 'in'

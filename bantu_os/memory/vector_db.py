@@ -1,74 +1,76 @@
 """
-Vector Database - Handles vector embeddings and similarity search.
+Vector Database - Simple in-memory vector store using list of dicts.
 """
+
 from typing import List, Dict, Any, Optional
 import numpy as np
-from dataclasses import dataclass
 
-@dataclass
-class VectorRecord:
-    """Represents a vector record in the database."""
-    id: str
-    vector: np.ndarray
-    metadata: Dict[str, Any]
-    text: Optional[str] = None
 
 class VectorDB:
-    """In-memory vector database implementation."""
-    
+    """In-memory vector database using a simple list of dicts."""
+
     def __init__(self, dim: int = 768):
-        """Initialize the vector database with specified dimension size."""
         self.dim = dim
-        self.records: Dict[str, VectorRecord] = {}
-    
-    def add(self, vector: np.ndarray, metadata: Dict[str, Any], text: str = None) -> str:
-        """Add a vector to the database."""
-        if len(vector) != self.dim:
-            raise ValueError(f"Vector dimension must be {self.dim}")
-            
-        record_id = f"vec_{len(self.records) + 1}"
-        self.records[record_id] = VectorRecord(
-            id=record_id,
-            vector=vector,
-            metadata=metadata,
-            text=text
-        )
+        self.vectors: List[Dict[str, Any]] = []
+
+    def add(
+        self,
+        embedding: List[float],
+        text: str,
+        metadata: Dict[str, Any] = None
+    ) -> str:
+        """Add a vector record to the store."""
+        if len(embedding) != self.dim:
+            raise ValueError(f"Embedding dimension must be {self.dim}")
+
+        record_id = f"vec_{len(self.vectors) + 1}"
+        record = {
+            "id": record_id,
+            "embedding": np.array(embedding),
+            "text": text,
+            "metadata": metadata or {},
+        }
+        self.vectors.append(record)
         return record_id
-    
-    def search(self, query_vector: np.ndarray, top_k: int = 5) -> List[Dict[str, Any]]:
+
+    def query(self, query_embedding: List[float], top_k: int = 5) -> List[Dict[str, Any]]:
         """Search for similar vectors using cosine similarity."""
-        if len(query_vector) != self.dim:
-            raise ValueError(f"Query vector dimension must be {self.dim}")
-        
-        # Calculate cosine similarities
-        similarities = []
-        for record in self.records.values():
-            similarity = np.dot(query_vector, record.vector) / (
-                np.linalg.norm(query_vector) * np.linalg.norm(record.vector)
-            )
-            similarities.append((record, similarity))
-        
-        # Sort by similarity (descending)
-        similarities.sort(key=lambda x: x[1], reverse=True)
-        
-        # Return top-k results
+        if len(query_embedding) != self.dim:
+            raise ValueError(f"Query embedding dimension must be {self.dim}")
+
+        q = np.array(query_embedding)
+        q_norm = np.linalg.norm(q)
+
+        results = []
+        for record in self.vectors:
+            v = record["embedding"]
+            similarity = float(np.dot(q, v) / (q_norm * np.linalg.norm(v)))
+            results.append((record, similarity))
+
+        results.sort(key=lambda x: x[1], reverse=True)
+
         return [
             {
-                'id': record.id,
-                'similarity': float(similarity),
-                'metadata': record.metadata,
-                'text': record.text
+                "id": r["id"],
+                "embedding": r["embedding"].tolist(),
+                "text": r["text"],
+                "metadata": r["metadata"],
+                "similarity": sim,
             }
-            for record, similarity in similarities[:top_k]
+            for r, sim in results[:top_k]
         ]
-    
-    def get(self, record_id: str) -> Optional[VectorRecord]:
+
+    def get(self, record_id: str) -> Optional[Dict[str, Any]]:
         """Get a vector record by ID."""
-        return self.records.get(record_id)
-    
+        for record in self.vectors:
+            if record["id"] == record_id:
+                return record
+        return None
+
     def delete(self, record_id: str) -> bool:
         """Delete a vector record by ID."""
-        if record_id in self.records:
-            del self.records[record_id]
-            return True
+        for i, record in enumerate(self.vectors):
+            if record["id"] == record_id:
+                self.vectors.pop(i)
+                return True
         return False
