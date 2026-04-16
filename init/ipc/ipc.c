@@ -1,9 +1,13 @@
+#define _POSIX_C_SOURCE 200809L
 #include "ipc.h"
 #include "../core/errors.h"
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <sys/select.h>
+#include <sys/time.h>
+#include <stdio.h>
 
 static int ipc_make_fifo(const char* path) {
     unlink(path);
@@ -130,7 +134,7 @@ int ipc_reply(ipc_endpoint_t* ep, ipc_message_t* original, void* payload, size_t
         .payload_len = (uint16_t)len,
         .sender_pid  = original->receiver_pid,
         .receiver_pid = original->sender_pid,
-        .reply_to = original - NULL,  // not tracking original
+        .reply_to = 0,  // not tracking original
     };
     memcpy(reply.data, payload, len);
     return ipc_send(ep, original->sender_pid, &reply);
