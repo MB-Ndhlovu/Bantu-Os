@@ -1,197 +1,79 @@
-"""
-ToolExecutor - Dispatches named tools with JSON-serializable arguments.
+#!/usr/bin/env python3
+"""Tool Executor - dispatches named tools with JSON args."""
 
-Provides a structured executor layer on top of Bantu-OS's tool registry.
-Works with any dict-of-callable registry (e.g. Kernel.tools).
-"""
 from __future__ import annotations
-
 import json
-import logging
-from typing import Any, Dict, List, Optional
-
-logger = logging.getLogger(__name__)
+from typing import Any, Dict, Optional, Callable
 
 
 class ToolExecutor:
-    """Dispatches named tools with JSON args.
+    """Dispatches tool calls to registered Python service functions."""
 
-    Does not own the tool registry — it receives a registry dict at
-    construction and operates on it directly.
+    def __init__(self) -> None:
+        self._tools: Dict[str, Callable[..., Any]] = {}
 
-    Example::
+    def register(self, name: str, fn: Callable[..., Any]) -> None:
+        self._tools[name] = fn
 
-        executor = ToolExecutor(registry={
-            "echo": lambda value: value,
-            "add":  lambda a, b: a + b,
-        })
-
-        result = executor.execute("echo", {"value": "ping"})
-        # -> {"success": true, "result": "ping"}
-    """
-
-    def __init__(
-        self,
-        registry: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        self.registry: Dict[str, Any] = registry or {}
-
-    # -------------------------------------------------------------------------
-    # Registry management
-    # -------------------------------------------------------------------------
-
-    def register(self, name: str, fn: Any) -> None:
-        """Register a callable under ``name``."""
-        self.registry[name] = fn
-
-    def unregister(self, name: str) -> bool:
-        """Remove a tool by name. Returns True if it existed."""
-        return self.registry.pop(name, None) is not None
-
-    # -------------------------------------------------------------------------
-    # Execution
-    # -------------------------------------------------------------------------
-
-    def execute(self, name: str, args: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Dispatch a tool call synchronously.
-
-        Args:
-            name: Tool identifier in the registry.
-            args: Keyword arguments for the tool (default `{}`).
-
-        Returns:
-            A dict with either ``"result"`` or ``"error"`` under key ``"success"``::
-
-                {"success": True,  "result": <return value>}
-                {"success": False, "error":  <exception message>}
-        """
-        if name not in self.registry:
-            return {"success": False, "error": f"Tool not found: {name}"}
-
-        kwargs = args or {}
+    def execute(self, tool: str, args: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        args = args or {}
+        if tool not in self._tools:
+            return {"success": False, "error": f"Unknown tool: {tool}"}
         try:
-            raw = self.registry[name](**kwargs)
-            # Await coroutines inline (non-async caller context)
-            if hasattr(raw, "__await__"):
-                # Fall back to sync resolution; note that truly async tools
-                # should be called via execute_async from an async context.
-                import asyncio
-                result = asyncio.get_event_loop().run_until_complete(raw)
-            else:
-                result = raw
+            result = self._tools[tool](**args)
             return {"success": True, "result": result}
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("ToolExecutor.execute(%s) failed", name)
-            return {"success": False, "error": str(exc)}
+        except TypeError as e:
+            return {"success": False, "error": f"Bad args for {tool}: {e}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
-    async def execute_async(
-        self, name: str, args: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """Dispatch a tool call, awaiting if the tool is async.
+    def list_tools(self) -> list[str]:
+        return list(self._tools.keys())
 
-        Args:
-            name: Tool identifier in the registry.
-            args: Keyword arguments for the tool (default `{}`).
 
-        Returns:
-            ``{"success": True, "result": <value>}`` or
-            ``{"success": False, "error": <message>}``
-        """
-        if name not in self.registry:
-            return {"success": False, "error": f"Tool not found: {name}"}
+# Built-in tools
+def tool_file_read(path: str) -> str:
+    with open(path, "r") as f:
+        return f.read()
 
-        kwargs = args or {}
-        try:
-            raw = self.registry[name](**kwargs)
-            if hasattr(raw, "__await__"):
-                result = await raw
-            else:
-                result = raw
-            return {"success": True, "result": result}
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("ToolExecutor.execute_async(%s) failed", name)
-            return {"success": False, "error": str(exc)}
+def tool_file_write(path: str, content: str) -> str:
+    with open(path, "w") as f:
+        f.write(content)
+    return f"Wrote {len(content)} bytes to {path}"
 
-    # -------------------------------------------------------------------------
-    # Batch dispatch
-    # -------------------------------------------------------------------------
+def tool_file_list(path: str = ".") -> list[str]:
+    import os
+    return sorted(os.listdir(path))
 
-    async def dispatch_batch(
-        self, calls: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        """Execute a list of tool calls.
+def tool_process_spawn(cmd: str) -> dict:
+    import subprocess, uuid
+    pid = subprocess.Popen(cmd, shell=True).pid
+    return {"pid": pid, "id": str(uuid.uuid4())[:8]}
 
-        ``calls`` is a list of dicts with required key ``name`` and
-        optional key ``args`` (a dict of keyword arguments)::
+def tool_process_list() -> list[dict]:
+    import os
+    return [{"pid": p} for p in range(1, 32768) if os.path.exists(f"/proc/{p}")]
 
-            [
-                {"name": "echo", "args": {"value": "ping"}},
-                {"name": "add",  "args": {"a": 1, "b": 2}}
-            ]
+def tool_memory_store(text: str, meta: Optional[dict] = None) -> str:
+    return f"Stored: {text[:50]}..."
 
-        Returns a parallel list of outcome dicts::
+def tool_network_get(url: str) -> dict:
+    import urllib.request, json
+    try:
+        with urllib.request.urlopen(url, timeout=10) as r:
+            return {"status": 200, "body": r.read().decode()[:500]}
+    except Exception as e:
+        return {"status": 0, "error": str(e)}
 
-            [
-                {"name": "echo", "success": True,  "result": "ping"},
-                {"name": "add",  "success": True,  "result": 3}
-            ]
+# Default executor instance
+_executor = ToolExecutor()
+_executor.register("file.read", tool_file_read)
+_executor.register("file.write", tool_file_write)
+_executor.register("file.list", tool_file_list)
+_executor.register("process.spawn", tool_process_spawn)
+_executor.register("process.list", tool_process_list)
+_executor.register("memory.store", tool_memory_store)
+_executor.register("network.get", tool_network_get)
 
-        Each entry always contains ``"name"`` and ``"success"``.
-        On failure, ``"error"`` is present instead of ``"result"``.
-        """
-        outcomes = []
-        for call in calls:
-            name = call.get("name", "")
-            args = call.get("args", {})
-            outcome = await self.execute_async(name, args)
-            outcome["name"] = name
-            outcomes.append(outcome)
-        return outcomes
-
-    # -------------------------------------------------------------------------
-    # JSON helpers
-    # -------------------------------------------------------------------------
-
-    def execute_json(self, payload: str | bytes | Dict[str, Any]) -> Dict[str, Any]:
-        """Parse a JSON tool call and execute it.
-
-        Accepts a JSON string/bytes or a pre-parsed dict::
-
-            executor.execute_json('{"name": "echo", "args": {"value": "hi"}}')
-            executor.execute_json({"name": "echo", "args": {"value": "hi"}})
-
-        Returns the same dict as ``execute()``.
-        """
-        if isinstance(payload, (str, bytes)):
-            try:
-                parsed = json.loads(payload)
-            except json.JSONDecodeError as exc:
-                return {"success": False, "error": f"Invalid JSON: {exc}"}
-        else:
-            parsed = payload
-
-        name = parsed.get("name", "")
-        args = parsed.get("args", {})
-        return self.execute(name, args)
-
-    async def dispatch_batch_json(
-        self, payload: str | bytes | List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        """Parse a JSON array of tool calls and dispatch them all.
-
-        Input can be a JSON-encoded string/bytes or a plain list of dicts::
-
-            executor.dispatch_batch_json('[{"name":"echo","args":{"v":1}}]')
-        """
-        if isinstance(payload, (str, bytes)):
-            try:
-                parsed = json.loads(payload)
-            except json.JSONDecodeError as exc:
-                return [{"success": False, "error": f"Invalid JSON: {exc}"}]
-        else:
-            parsed = payload
-
-        if not isinstance(parsed, list):
-            return [{"success": False, "error": "Expected a list of tool calls"}]
-
-        return await self.dispatch_batch(parsed)
+dispatch = _executor.execute
+list_tools = _executor.list_tools

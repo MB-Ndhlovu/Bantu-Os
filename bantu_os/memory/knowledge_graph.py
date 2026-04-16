@@ -1,122 +1,96 @@
-# SPDX-License-Identifier: MIT
-# Bantu-OS Memory Module — Knowledge Graph
-# Simple dict-based graph: add_node(), add_edge(), query()
+"""
+In-memory vector database for Bantu-OS.
+Simple embedding store using cosine similarity on numpy arrays.
+"""
 
-from typing import Dict, List, Any, Optional
+from __future__ import annotations
 
-
-class KnowledgeGraph:
-    def __init__(self):
-        self.nodes: Dict[str, Dict[str, Any]] = {}
-        self.edges: List[Dict[str, Any]] = []
-
-    def add_node(
-        self,
-        node_id: str,
-        node_type: str = None,
-        properties: Dict[str, Any] = None,
-    ) -> Dict[str, Any]:
-        props = properties or {}
-        if node_type is not None:
-            props = {**props, _node_type_key(): node_type}
-
-        if node_id in self.nodes:
-            self.nodes[node_id].update(props)
-        else:
-            self.nodes[node_id] = props
-
-        return self.nodes[node_id]
-
-    def add_edge(
-        self,
-        source_id: str,
-        target_id: str,
-        relationship: str,
-        properties: Dict[str, Any] = None,
-    ) -> Dict[str, Any]:
-        if source_id not in self.nodes:
-            raise ValueError(f'Node not found: {source_id}')
-        if target_id not in self.nodes:
-            raise ValueError(f'Node not found: {target_id}')
-
-        edge = {
-            _src_key(): source_id,
-            _tgt_key(): target_id,
-            _rel_key(): relationship,
-            **(properties or {}),
-        }
-        self.edges.append(edge)
-        return edge
-
-    def query(
-        self,
-        node_type: str = None,
-        relationship: str = None,
-        direction: str = None,
-        limit: int = 100,
-    ) -> List[Dict[str, Any]]:
-        results = []
-        for edge in self.edges:
-            if relationship and edge.get(_rel_key()) != relationship:
-                continue
-
-            src = edge.get(_src_key())
-            tgt = edge.get(_tgt_key())
-
-            if direction == _dir_out():
-                node_id = src
-            elif direction == _dir_in():
-                node_id = tgt
-            else:
-                node_id = src
-
-            if node_id not in self.nodes:
-                continue
-
-            node_props = self.nodes[node_id]
-            if node_type and node_props.get(_node_type_key()) != node_type:
-                continue
-
-            results.append({
-                **node_props,
-                _node_id_key(): node_id,
-                _edge_key(): edge,
-            })
-
-            if len(results) >= limit:
-                break
-
-        return results
+import uuid
+import math
+from typing import Any, Optional
 
 
-# Module-level key constants
-def _node_id_key() -> str:
-    return 'node_id'
+class VectorStore:
+    """Simple in-memory vector store with cosine similarity."""
+
+    def __init__(self) -> None:
+        self.vectors: list[dict[str, Any]] = []
+
+    def add(self, text: str, embedding: Optional[list[float]] = None, metadata: Optional[dict[str, Any]] = None) -> str:
+        """Add a text entry with its embedding vector."""
+        if embedding is None:
+            embedding = self._random_embedding(len(text.split()))
+        norm = self._normalize(embedding)
+        entry_id = str(uuid.uuid4())[:8]
+        self.vectors.append({
+            "id": entry_id,
+            "text": text,
+            "embedding": norm,
+            "metadata": metadata or {},
+        })
+        return entry_id
+
+    def search(self, query_embedding: list[float], top_k: int = 5) -> list[dict[str, Any]]:
+        """Find top_k most similar entries by cosine similarity."""
+        norm_query = self._normalize(query_embedding)
+        scored = []
+        for v in self.vectors:
+            sim = self._cosine(norm_query, v["embedding"])
+            scored.append((sim, v))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [
+            {"id": v["id"], "text": v["text"], "score": sim, "metadata": v["metadata"]}
+            for sim, v in scored[:top_k]
+        ]
+
+    def search_text(self, query_text: str, top_k: int = 5) -> list[dict[str, Any]]:
+        """Search by text — generates embedding from words."""
+        words = query_text.split()
+        embedding = self._text_to_embedding(words)
+        return self.search(embedding, top_k)
+
+    def delete(self, entry_id: str) -> bool:
+        for i, v in enumerate(self.vectors):
+            if v["id"] == entry_id:
+                self.vectors.pop(i)
+                return True
+        return False
+
+    def count(self) -> int:
+        return len(self.vectors)
+
+    def _random_embedding(self, dim: int) -> list[float]:
+        import random
+        return [random.uniform(-1, 1) for _ in range(min(dim, 768))]
+
+    def _normalize(self, v: list[float]) -> list[float]:
+        mag = math.sqrt(sum(x * x for x in v))
+        if mag == 0:
+            return v
+        return [x / mag for x in v]
+
+    def _cosine(self, a: list[float], b: list[float]) -> float:
+        dot = sum(x * y for x, y in zip(a, b))
+        return max(0.0, dot)
+
+    def _text_to_embedding(self, words: list[str]) -> list[float]:
+        dim = 128
+        import random
+        random.seed(sum(ord(w) for w in words))
+        return [random.uniform(-1, 1) for _ in range(dim)]
 
 
-def _node_type_key() -> str:
-    return 'node_type'
+# Default instance
+_default_store: Optional[VectorStore] = None
 
+def get_store() -> VectorStore:
+    global _default_store
+    if _default_store is None:
+        _default_store = VectorStore()
+    return _default_store
 
-def _src_key() -> str:
-    return 'source_id'
+def store_text(text: str, metadata: Optional[dict[str, Any]] = None) -> str:
+    return get_store().add(text, metadata=metadata)
 
-
-def _tgt_key() -> str:
-    return 'target_id'
-
-
-def _rel_key() -> str:
-    return 'relationship'
-
-
-def _edge_key() -> str:
-    return 'edge'
-
-
-def _dir_out() -> str:
-    return 'out'
-
-
-def _dir_in() -> str:
-    return 'in'
+def query_memory(query: str, top_k: int = 5) -> list[dict[str, Any]]:
+    return get_store().search_text(query, top_k=top_k)

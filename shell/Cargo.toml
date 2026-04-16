@@ -1,6 +1,16 @@
 [package]
-name = "bantu_shell"
+name = "bantu-shell"
 version = "0.1.0"
 edition = "2021"
+description = "Bantu-OS AI Shell - Rust REPL for tool dispatch"
+authors = ["Bantu-OS Team"]
+
+[[bin]]
+name = "bantu"
+path = "src/main.rs"
 
 [dependencies]
+rustyline = "13.0"  # Command line editing
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
