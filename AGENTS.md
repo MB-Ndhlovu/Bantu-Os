@@ -1,65 +1,59 @@
 # Bantu-OS — Agent Working Context
 
 **Repo:** https://github.com/MB-Ndhlovu/Bantu-Os
-**Remote:** origin (authenticated via GITHUB_TOKEN in Zo secrets)
 **Branch:** main
+**Auth:** GITHUB_TOKEN stored in Zo secrets (never expose in code or chat)
 
-**Auth setup:**
-```bash
-git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/MB-Ndhlovu/Bantu-Os.git
-git config credential.helper "store"
-```
+## Architecture
 
-## Project Structure
+Bantu-OS is a Linux-based AI-native OS. Built with C (init), Rust (shell), Python (AI engine).
 
 ```
-bantu_os/
-├── bantu_os/
-│   ├── core/kernel/       # LLM manager, providers, kernel
-│   ├── agents/           # SchedulingAgent, TaskManager, base_agent
-│   ├── memory/           # Vector DB, knowledge graph
-│   ├── interface/        # CLI shell, hooks
-│   └── config/           # Settings
-├── tests/
-│   ├── unit/             # Unit tests (passing)
-│   └── kernel/           # Kernel tests
-└── pyproject.toml
+Layer 4: Services (Python) — file, process, network services
+Layer 3: AI Engine (Python) — kernel, llm_manager, tool_executor
+Layer 2: Shell (Rust) — REPL, command parser, tool dispatch
+Layer 1: Init (C) — PID 1, service registry, signal handling
+BASE:    Linux Kernel
 ```
 
-## Phase Roadmap
+## Current Project State
 
-- Phase 1: OS Core + AI Assistant MVP ← CURRENT
-- Phase 2: Connectivity (messaging, banking, crypto)
-- Phase 3: IoT ecosystem
-- Phase 4: Enterprise + global rollout
+- C init: ✅ Compiles and works (init/init.c)
+- Rust shell: ✅ Builds (shell/src/main.rs, shell/Cargo.toml)
+- Python AI engine: 🔨 Core exists, needs kernel tests
+- Tests: scheduling_agent (passing), task_manager (passing), llm_manager (passing)
 
-## Current Status (as of 2026-04-16)
+## Workflow (Mandatory for All Agents)
 
-- 6 commits on main, early-stage foundation
-- Tests: scheduling_agent (30 passing), task_manager (8 passing), llm_manager (11 passing)
-- Missing: kernel tests, memory tests, integration tests
-- Missing: CLI commands, shell integration, real API keys in providers
+```
+1. git fetch upstream
+2. git checkout main && git pull upstream main
+3. git checkout -b feat/your-feature-name
+4. Make changes
+5. python -m pytest tests/ -v  (ALL must pass)
+6. git add . && git commit -m "<type>(<scope>): description"
+7. git push origin feat/your-feature-name
+8. Open PR on GitHub
+```
 
-## Agent Team
+## What to Build Next (Priority Order)
 
-| Agent | Role | Time |
-|-------|------|------|
-| Midnight Coder | Full codebase, 1.5hrs/day | 00:00 |
-| Memory Engineer | ChromaDB, embeddings | 01:00 |
-| CLI Engineer | Shell, commands | 03:00 |
-| Testing Lead | Test coverage | 05:00 |
-| Kernel Engineer | System services, agent pipeline | 07:00 |
-| Integration Lead | APIs, fintech, crypto | 09:00 |
-| Social (AM) | Twitter updates | 07:00 |
-| Social (PM) | Twitter updates | 12:00 |
-| Docs Writer | README, CONTRIBUTING | 15:00 |
+1. Rust shell tool dispatch (shell/src/main.rs → parse.rs)
+2. Python kernel integration tests
+3. Python service APIs (file, process, network)
+4. ChromaDB memory integration
+5. CI: add cargo test
+6. Architecture docs (SPEC.md already done)
 
-## Pull-Push Workflow
+## Commit Convention
 
-Every agent that makes changes must:
-1. `git pull origin main` — always start fresh
-2. Make changes
-3. `git add . && git commit -m "descriptive message"`
-4. `git push origin main`
+`<type>(<scope>): <description>`
 
-If push fails with "Authentication error", the GITHUB_TOKEN may have expired. Notify the supervisor.
+Types: feat | fix | docs | test | refactor | chore
+Examples: `feat(init): add SIGTERM handling`, `fix(scheduler): HHMM regex`
+
+## Important
+
+- NEVER expose GITHUB_TOKEN in code or messages
+- All tests must pass before pushing
+- Read SPEC.md before working on architecture-level changes
