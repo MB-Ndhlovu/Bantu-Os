@@ -1,257 +1,215 @@
-# Bantu-OS — Technical Specification
+# Bantu-OS Specification
 
-## 1. Project Overview
-
-**Bantu-OS** is an AI-native personal operating system designed from the ground up for the AI era.
-
-Unlike legacy operating systems that bolt-on AI as an afterthought, Bantu-OS places the LLM at the core of the OS — making your personal AI the primary interface and executive partner of your digital life.
-
-### Core Pillars
-
-| Pillar | Description |
-|--------|-------------|
-| **AI-Native** | LLM is the OS kernel; every operation is AI-mediated |
-| **Lightweight** | Runs on modern and low-power devices; minimal resource footprint |
-| **Resilient** | Works offline and online; bridges connectivity gaps |
-| **Globally Inclusive** | Born in Africa, built for the world |
-
-### Repository
-
-```
-https://github.com/MB-Ndhlovu/Bantu-Os
-```
+**Version:** 0.1.0  
+**Status:** Pre-alpha  
+**Architecture:** Linux-based, AI-native personal operating system
 
 ---
 
-## 2. Architecture Diagram
+## 1. Project Overview
+
+Bantu-OS is an African-born, AI-native operating system built on Linux. It reimagines the OS by making AI the primary interface — not an app running on top of an OS, but an OS where AI is the orchestrating intelligence that mediates between the user and all system resources.
+
+The goal is a lightweight, fast, security-conscious OS that works across modern and low-power hardware, bridges the digital divide with resilient connectivity, and brings African-led innovation to the global OS landscape.
+
+---
+
+## 2. Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     USER INTERFACE LAYER                     │
-│                 (CLI Shell, Voice Hooks, Text)              │
-├─────────────────────────────────────────────────────────────┤
-│                    AGENT ORCHESTRATION LAYER                 │
-│          (SchedulingAgent, TaskManager, BaseAgent)         │
-├─────────────────────────────────────────────────────────────┤
-│                      CORE SERVICES LAYER                      │
-│        (Kernel, LLM Manager, System Services, API Base)      │
-├─────────────────────────────────────────────────────────────┤
-│                      MEMORY LAYER                             │
-│        (VectorDB, KnowledgeGraph, Embeddings)               │
-├─────────────────────────────────────────────────────────────┤
-│                   INFRASTRUCTURE LAYER                       │
-│     (Python Runtime, Linux Kernel, Config, Logging)         │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│                    USER LAYER                        │
+│         (Natural language, voice, CLI)              │
+├─────────────────────────────────────────────────────┤
+│                  LAYER 4 — AI SERVICES               │
+│         (Python: LLM engine, agents, memory,         │
+│          file service, process service, network)     │
+├─────────────────────────────────────────────────────┤
+│                  LAYER 3 — AI SHELL                  │
+│              (Rust: REPL, tool dispatch)             │
+├─────────────────────────────────────────────────────┤
+│                  LAYER 2 — INIT SYSTEM               │
+│              (C: PID 1, service registry)            │
+├─────────────────────────────────────────────────────┤
+│                  LAYER 1 — LINUX KERNEL              │
+│            (Standard Linux, no modifications)        │
+└─────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 3. Layer Descriptions
 
-### Layer 0 — Infrastructure
+### Layer 0 — Linux Kernel
+- Standard Linux kernel (no modifications)
+- Provides: process management, memory, file system, networking, hardware abstraction
+- Bantu-OS does NOT write its own kernel — it runs ON Linux
 
-The foundation that everything runs on.
+### Layer 1 — C Init System (bantu_os/init/)
+- **PID 1** — replaces systemd/OpenRC as the first user-space process
+- Service registry: register services, start/stop/restart
+- Dependency resolution between services
+- Minimal footprint — no systemd complexity
+- **Language:** C (gcc)
 
-| Component | Language | Description |
-|-----------|----------|-------------|
-| Linux Kernel | C | System-level operations, device management |
-| Python Runtime | Python | Core OS logic, agent system, memory management |
-| Poetry | Python | Dependency management |
-| Logging System | Python | Structured logging via `logging.conf` |
+### Layer 2 — Rust AI Shell (bantu_os/shell/)
+- Command REPL running in userspace
+- Parses natural language commands
+- Dispatches tool calls to Layer 3 Python engine via IPC (Unix socket or stdin/stdout)
+- Manages session state and context
+- **Language:** Rust (cargo)
 
-### Layer 1 — Memory
+### Layer 3 — Python AI Engine (bantu_os/bantu_os/)
+- LLM Manager — pluggable providers (OpenAI, Anthropic, local LLaMA)
+- Kernel — orchestrates prompts, tools, and memory
+- Agent Loop — task execution, tool use, result handling
+- Memory — vector DB + knowledge graph for persistent context
+- **Language:** Python 3.9+
 
-Persistent storage and retrieval systems.
-
-| Component | Language | Description |
-|-----------|----------|-------------|
-| `vector_db.py` | Python | ChromaDB vector store for semantic search |
-| `knowledge_graph.py` | Python | Structured knowledge representation |
-| `embeddings/base.py` | Python | Embedding protocol (OpenAI adapter) |
-| `embeddings/openai.py` | Python | OpenAI embedding implementation |
-
-### Layer 2 — Core Services
-
-The kernel and service orchestration.
-
-| Component | Language | Description |
-|-----------|----------|-------------|
-| `kernel.py` | Python | Central OS kernel, agent pipeline orchestration |
-| `llm_manager.py` | Python | LLM lifecycle management (load, inference, swap) |
-| `services.py` | Python | System service registry and lifecycle |
-| `providers/base.py` | Python | Abstract LLM provider interface |
-| `providers/openai_chat.py` | Python | OpenAI Chat API provider implementation |
-
-### Layer 3 — Agent Orchestration
-
-AI agents that plan, schedule, and execute.
-
-| Component | Language | Description |
-|-----------|----------|-------------|
-| `base_agent.py` | Python | Base class for all agents |
-| `scheduling_agent.py` | Python | Time-aware task scheduling agent |
-| `task_manager.py` | Python | Task queue, persistence, and execution |
-| `agent_manager.py` | Python | Agent lifecycle and coordination |
-| `api/base_api.py` | Python | Abstract API handler for tool integrations |
-
-### Layer 4 — User Interface
-
-Human-facing interaction points.
-
-| Component | Language | Description |
-|-----------|----------|-------------|
-| `cli/shell.py` | Python | Interactive CLI shell |
-| `cli/commands.py` | Python | CLI command definitions |
-| `hooks/text.py` | Python | Text input/output hooks |
-| `hooks/voice.py` | Python | Voice interface hooks (future) |
+### Layer 4 — Python System Services (bantu_os/bantu_os/services/)
+- **FileService** — read, write, list, search files via AI tool calls
+- **ProcessService** — spawn, monitor, kill processes
+- **SchedulingService** — calendar, reminders, cron-like scheduling
+- **NetworkService** — HTTP requests, API calls, connectivity checks
+- Each service exposes tools via a JSON schema
 
 ---
 
 ## 4. Language Breakdown
 
-| Language | Use Case | Count (est.) |
-|----------|----------|-------------|
-| **Python** | Core logic, agents, memory, interface, config | ~85% |
-| **C** | Linux kernel, low-level system calls | ~10% |
-| **Rust** | Planned for future performance-critical paths | ~5% (future) |
+| Layer | Language | Purpose |
+|-------|----------|---------|
+| Kernel | C | Init system, PID 1, service manager |
+| AI Shell | Rust | REPL, command parsing, tool dispatch |
+| AI Engine | Python | LLM, agents, memory, system services |
+| Build/CI | Shell + YAML | Makefiles, GitHub Actions |
+| Docs | Markdown | All documentation |
 
 ---
 
-## 5. Phase 1 Feature List
+## 5. Phase 1 Features (MVP)
 
-**Phase 1 — Foundation: OS Core + AI Assistant MVP**
+### Must Have
+- [ ] C init system that boots and manages at least 3 services
+- [ ] Rust shell REPL that accepts text commands
+- [ ] Python AI engine with working LLM integration (OpenAI)
+- [ ] Tool executor that dispatches commands to Python services
+- [ ] File service (read, write, list files)
+- [ ] Memory module (vector store + knowledge graph)
+- [ ] Working CI pipeline (pytest + cargo check + gcc check)
+- [ ] SPEC.md, CONTRIBUTING.md, SECURITY.md
 
-### Target: MVP deliverable
+### Should Have
+- [ ] Process service (spawn and manage processes)
+- [ ] Scheduling service (calendar integration)
+- [ ] Network service (HTTP client)
+- [ ] Docker build environment
+- [ ] Basic integration tests
 
-- [ ] **Kernel Core**
-  - LLM Manager with OpenAI provider
-  - Base kernel orchestrating agent pipeline
-  - System service registry
-
-- [ ] **Agent System**
-  - BaseAgent abstract class
-  - SchedulingAgent with cron-based scheduling
-  - TaskManager with persistent task queue
-  - AgentManager for lifecycle coordination
-
-- [ ] **Memory System**
-  - ChromaDB vector database integration
-  - KnowledgeGraph for structured memory
-  - OpenAI embeddings (text-embedding-ada-002)
-
-- [ ] **CLI Interface**
-  - Interactive shell (`shell.py`)
-  - Core commands (`commands.py`)
-  - Text hooks for input/output
-
-- [ ] **Tool System**
-  - Calculator tool
-  - File manager tool
-  - Filesystem tool
-  - Web search tool
-  - Browser tool
-  - Scheduler tool
-
-- [ ] **Configuration**
-  - JSON-based settings (`settings.json`)
-  - Settings manager (`settings_manager.py`)
-  - Structured logging (`logging.conf`)
-
-- [ ] **Testing**
-  - Unit tests for scheduling_agent (30 passing)
-  - Unit tests for task_manager (8 passing)
-  - Unit tests for llm_manager (11 passing)
-  - Kernel async tool pipeline tests
-  - Memory system tests
+### Could Have
+- [ ] Voice interface (text-to-speech, speech-to-text)
+- [ ] Anthropic/Grok provider support
+- [ ] Local LLaMA integration
+- [ ] IoT service (MQTT)
 
 ---
 
-## 6. Contributing Guide (Excerpt)
-
-### Quick Start
-
-```bash
-# 1. Fork and clone
-git clone https://github.com/<your-username>/Bantu-Os.git
-cd Bantu-Os
-
-# 2. Install dependencies
-poetry install
-
-# 3. Configure environment
-cp .env.template .env
-# Edit .env with your API keys
-
-# 4. Run the shell
-poetry run python -m bantu_os.interface.cli.shell
-
-# 5. Run tests
-poetry run pytest
-```
-
-### Commit Workflow
-
-Every contributor follows this cycle:
+## 6. Directory Structure
 
 ```
-git pull origin main   # Always start fresh
-→ Make changes
-git add .
-git commit -m "descriptive message"
-git push origin main
-```
-
-### Code Standards
-
-- Type hints on all function signatures
-- Docstrings on public classes and methods
-- One logical change per commit
-- Tests must pass before push
-
-### Areas Needing Help
-
-| Priority | Area | Notes |
-|----------|------|-------|
-| 🔴 High | Kernel tests | Pipeline coverage needed |
-| 🔴 High | Memory tests | ChromaDB + KG coverage |
-| 🟡 Medium | CLI commands | Shell integration incomplete |
-| 🟡 Medium | Real API provider | Currently mock mode |
-| 🟢 Low | Voice hooks | Future-facing |
-
----
-
-## 7. Roadmap
-
-```
-Phase 1: Foundation (NOW)
-  └── OS Core + AI Assistant MVP
-      ├── Kernel + LLM Manager ✅ (in progress)
-      ├── Agent System ✅ (in progress)
-      ├── Memory Layer 🔄 (in progress)
-      ├── CLI Interface 🔄 (in progress)
-      └── Testing 🔄 (in progress)
-
-Phase 2: Connectivity
-  └── Messaging, Banking, Crypto Integrations
-      ├── Payment APIs (Stripe, PayPal)
-      ├── Crypto wallet integration
-      ├── Messaging (Telegram, WhatsApp)
-      └── Banking aggregation
-
-Phase 3: Ecosystem
-  └── IoT & Smart Devices
-      ├── IoT agent for device control
-      ├── Hardware prototype (ESP32)
-      └── Smart home hub integration
-
-Phase 4: Scale
-  └── Enterprise + Global Rollout
-      ├── Multi-tenant architecture
-      ├── Enterprise licensing
-      ├── Mobile OS (Android, iOS)
-      └── App store ecosystem
+bantu_os/
+├── AGENTS.md              # Agent team instructions
+├── Makefile               # Build orchestration
+├── Dockerfile             # Build environment
+├── README.md              # Project overview
+├── SPEC.md                # This file
+├── .github/
+│   └── workflows/
+│       └── ci.yml         # GitHub Actions CI
+├── scripts/
+│   └── dev-setup.sh       # One-script dev environment
+├── init/                  # Layer 1: C init system
+│   ├── init.c             # PID 1, service registry
+│   └── Makefile
+├── shell/                 # Layer 2: Rust AI shell
+│   ├── Cargo.toml
+│   ├── src/
+│   │   └── main.rs        # REPL + tool dispatch
+│   └── Makefile
+├── bantu_os/              # Layer 3 & 4: Python AI engine
+│   ├── __init__.py
+│   ├── core/
+│   │   ├── kernel/
+│   │   │   ├── llm_manager.py
+│   │   │   ├── kernel.py
+│   │   │   └── providers/
+│   │   │       ├── base.py
+│   │   │       └── openai_chat.py
+│   │   └── utils/
+│   ├── agents/
+│   │   ├── base_agent.py
+│   │   ├── task_manager.py
+│   │   ├── scheduling_agent.py
+│   │   └── tool_executor.py
+│   ├── services/
+│   │   ├── file_service.py
+│   │   ├── process_service.py
+│   │   ├── scheduling_service.py
+│   │   └── network_service.py
+│   ├── memory/
+│   │   ├── vector_db.py
+│   │   └── knowledge_graph.py
+│   ├── security/
+│   │   └── basic_secrets.py
+│   └── interface/
+│       ├── cli/
+│       └── hooks/
+├── docs/
+│   ├── SPEC.md
+│   ├── SECURITY.md
+│   ├── KERNEL.md
+│   ├── TOOL_INTERFACE.md
+│   └── CONTRIBUTING.md
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   └── conftest.py
+└── initramfs/
+    └── build.sh
 ```
 
 ---
 
-*Last updated: 2026-04-16*
+## 7. Contributing
+
+See `docs/CONTRIBUTING.md` for full guide.
+
+**Key rules:**
+- All code must compile and pass tests before commit
+- Python: run `make format` before committing
+- Rust: run `cargo fmt` before committing
+- C: run `make clean && make` before committing
+- No hardcoded API keys or secrets — use environment variables
+
+---
+
+## 8. Roadmap
+
+### Phase 1 — Foundation (current)
+Linux-based OS with working AI shell, Python AI engine, and basic services.
+
+### Phase 2 — Connectivity
+Messaging integration, fintech APIs (Stripe, African payment providers), crypto wallet basics.
+
+### Phase 3 — Ecosystem
+IoT device support, hardware prototypes, mobile companion app.
+
+### Phase 4 — Scale
+Enterprise partnerships, licensing, global rollout.
+
+---
+
+## 9. Contact
+
+- GitHub Issues: https://github.com/MB-Ndhlovu/Bantu-Os/issues
+- Email: malibongwendhlovu05@gmail.com
