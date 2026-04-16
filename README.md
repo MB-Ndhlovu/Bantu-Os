@@ -1,214 +1,199 @@
+# Bantu-OS
 
+**The African-born, AI-native operating system built on Linux.**
 
-🌍 Bantu OS  An AI-Native Personal Operating System
+Bantu-OS is a Linux-based, AI-native operating system that reimagines how humans interact with technology — putting a personal AI assistant at the core of the experience. Built from first principles using C, Rust, and Python, it runs as a layer on top of Linux, combining the stability of a proven kernel with intelligent, adaptive computing.
 
+> 🌍 *"The next great platform shift won't come from Silicon Valley. It will come from those who build for the realities of tomorrow."*
 
-Bantu OS is not just another operating system.
-It’s a vision for the future: an AI-first, African-born OS designed to reimagine how humans interact with technology.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Status: Pre-alpha](https://img.shields.io/badge/Status-Pre--alpha-red)](README.md)
+[![Architecture: Linux-based](https://img.shields.io/badge/Arch-Linux--based-brightgreen)](README.md)
+[![Language: C + Rust + Python](https://img.shields.io/badge/Lang-C%2C%20Rust%2C%20Python-yellow)](README.md)
 
-We believe the next great platform shift won’t come from Silicon Valley.
-It will come from those who build for the realities of tomorrow:
-🌐 unstable networks, 🌍 global communities, ⚡ lightweight devices, and 🤖 AI as a daily partner.
+---
 
-🚨 The Problem
+## 🎯 Why Bantu-OS?
 
-Operating systems today are:
+Operating systems today are bloated, app-centric, and blind to the realities of developing nations — unreliable networks, low-power devices, accessibility gaps. **Bantu-OS changes this.**
 
-❌ Bloated and outdated, built on decades of legacy code.
+| Property | Traditional OS | Bantu-OS |
+|----------|----------------|---------|
+| AI Integration | Tacked on | Core-first |
+| Connectivity | Assumes stable network | Resilient (offline + online) |
+| Resource Usage | Heavy | Lightweight |
+| User Focus | App-centric | Intelligence-centric |
+| Origin | Silicon Valley | Africa, for the world |
 
-❌ App-centric, instead of user-centric.
+---
 
-❌ Blind to the unique challenges of developing nations (unreliable connectivity, accessibility gaps).
+## 🏗️ Architecture
 
-No OS today makes your personal AI the core of the experience.
-
-💡 The Solution
-
-Bantu OS is designed from the ground up to be:
-
-⚡ Lightweight & Fast → Works seamlessly across modern and low-power devices.
-
-🔗 AI-Native → Your OS is not just an environment, it’s your personal executive assistant.
-
-🌐 Resilient → Built to work offline + online, bridging the digital divide.
-
-🎨 Minimalist & Futuristic → Clean, distraction-free, timeless design.
-
-🌍 Globally Inclusive → Born in Africa, built for the world.
-
-👩🏽‍💻 Why Developers Should Join
-
-This is not a side project. This is a movement.
-
-Contribute to building the first AI-native OS.
-
-Work at the frontier of AI, OS design, security, fintech APIs, and IoT.
-
-Be part of a historic moment: an African-born OS challenging the giants.
-
-Every contributor gets recognition, ownership, and the chance to shape something far bigger than any one of us.
-
-If you ever wanted to work on the next Linux, the next iOS, the next Android  this is your chance.
-
-💰 Why Investors Should Care
-
-Investing in Bantu OS means:
-
-Owning the next platform shift  OS is the most defensible layer in tech.
-
-Africa-first, global scale → The fastest-growing digital market on Earth.
-
-Huge monetization paths:
-
-AI-powered premium services
-
-Fintech & payments integration
-
-Enterprise licensing
-
-IoT & hardware ecosystem
-
-Backing not just a product, but a cultural and technological revolution.
-
-This is the kind of once-in-a-generation opportunity that changes industries.
-
-🗺 Roadmap
-
-Phase 1 — Foundation
-🔹 Minimalist OS Core + AI Assistant MVP
-
-Phase 2 — Connectivity
-🔹 Messaging, Banking, Crypto Integrations
-
-Phase 3 — Ecosystem
-🔹 IoT & Smart Devices, Hardware Prototypes
-
-Phase 4 — Scale
-🔹 Enterprise Partnerships, Monetization, Global Rollout
-
-🚀 Get Involved
-
-Developers:
-
-Fork this repo & explore the issues.
-
-Help shape the OS of the future.
-
-Investors & Partners:
-
-Contact us: malibongwendhlovu05@gmail.com
-
-Request the pitch deck.
-
-🌍 Vision
-
-Bantu OS is more than technology.
-It’s a statement:
-
-That Africa can lead in innovation.
-
-That operating systems can be reimagined for the AI era.
-
-That a personal AI can and should — be the center of your digital life.
-
-This is the future.
-We’re building it now.
-And you’re invited
-
-# Bantu OS
-
-Bantu OS is an AI-powered operating system that combines the power of large language models with traditional system operations to create an intelligent, adaptive computing environment.
-
-## Project Structure
+Bantu-OS is a layered architecture built on Linux. Each layer is independently buildable.
 
 ```
-bantu_os/
-├── core/                    # Core system components
-│   ├── __init__.py
-│   ├── kernel/             # Core LLM integration and system services
-│   │   ├── __init__.py
-│   │   ├── llm_manager.py  # LLM model management
-│   │   └── services.py     # System services management
-│   │
-│   └── utils/              # Core utilities
-│       ├── __init__.py
-│       └── helpers.py      # Helper functions
-│
-├── agents/                 # AI agents and task management
-│   ├── __init__.py
-│   ├── base_agent.py      # Base agent class
-│   ├── task_manager.py    # Task management
-│   └── api/               # API integrations
-│       ├── __init__.py
-│       └── base_api.py    # Base API handler
-│
-├── interface/             # User interfaces
-│   ├── __init__.py
-│   ├── cli/               # Command Line Interface
-│   │   ├── __init__.py
-│   │   ├── commands.py    # CLI commands
-│   │   └── shell.py       # Interactive shell
-│   │
-│   └── hooks/             # Hooks for future interfaces
-│       ├── __init__.py
-│       ├── voice.py       # Voice interface hooks
-│       └── text.py        # Text interface hooks
-│
-├── memory/                # Memory and knowledge management
-│   ├── __init__.py
-│   ├── vector_db.py       # Vector database integration
-│   └── knowledge_graph.py # Knowledge graph implementation
-│
-├── config/                # Configuration files
-│   ├── __init__.py
-│   ├── settings.py        # Application settings
-│   └── logging.conf       # Logging configuration
-│
-└── tests/                 # Test suite
-    ├── __init__.py
-    ├── unit/             # Unit tests
-    └── integration/      # Integration tests
+┌─────────────────────────────────────────────────────────────┐
+│  LAYER 4 — Services (Python)                               │
+│  file_service | process_service | network_service | etc.   │
+├─────────────────────────────────────────────────────────────┤
+│  LAYER 3 — AI Engine (Python)                              │
+│  kernel.py | llm_manager.py | tool_executor.py             │
+├─────────────────────────────────────────────────────────────┤
+│  LAYER 2 — Shell (Rust)                                    │
+│  AI REPL | command parser | tool dispatch                  │
+├─────────────────────────────────────────────────────────────┤
+│  LAYER 1 — Init System (C)                                 │
+│  PID 1 | service registry | signal handling                │
+├─────────────────────────────────────────────────────────────┤
+│  BASE — Linux Kernel (Debian-based)                         │
+│  System calls | Device drivers | Memory management         │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Getting Started
+| Layer | Language | Status | Description |
+|-------|----------|--------|-------------|
+| Init System | C | ✅ Working | PID 1 init with service registry, signal handling |
+| AI Shell | Rust | 🔨 In Progress | REPL with tool dispatch, rustyline editor |
+| AI Engine | Python | 🔨 In Progress | LLM manager, kernel, tool executor |
+| Services | Python | 🔨 In Progress | File, process, network, scheduler services |
+| Memory | Python | 🔨 In Progress | Vector DB, knowledge graph, embeddings |
+
+---
+
+## 📂 Project Structure
+
+```
+Bantu-OS/
+├── init/                    # Layer 1: C init system (PID 1)
+│   ├── init.c               # Main init process
+│   └── Makefile             # Build system
+├── shell/                   # Layer 2: Rust AI shell
+│   ├── Cargo.toml           # Rust dependencies
+│   └── src/
+│       └── main.rs          # Rust REPL entry point
+├── bantu_os/                # Layer 3 & 4: Python AI engine
+│   ├── core/
+│   │   └── kernel/          # LLM manager, providers, kernel
+│   ├── agents/              # Task manager, scheduler, tools
+│   ├── memory/              # Vector DB, knowledge graph
+│   ├── services/           # File, process, network services
+│   ├── security/           # Secrets management
+│   └── interface/          # CLI shell, hooks
+├── tests/                   # Test suite
+│   ├── unit/               # Unit tests
+│   └── integration/        # Integration tests
+├── docs/                    # Architecture docs
+│   ├── SPEC.md             # Full project specification
+│   ├── KERNEL.md           # Kernel design
+│   ├── SECURITY.md         # Security model
+│   └── TOOL_INTERFACE.md   # Tool executor interface
+├── .github/
+│   └── workflows/
+│       └── ci.yml          # GitHub Actions CI
+├── AGENTS.md                # Agent team context & workflow
+├── CONTRIBUTING.md          # Contribution guide
+├── LICENSE                  # MIT License
+└── README.md                # This file
+```
+
+---
+
+## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.9+
-- Poetry (for dependency management)
 
-### Installation
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   poetry install
-   ```
-3. Configure your environment variables in `.env`
+- Linux (Debian/Ubuntu-based)
+- Python 3.10+
+- Rust 1.70+
+- GCC
 
-## Development
+### Build & Run
 
-### Running the CLI
 ```bash
-poetry run python -m bantu_os.interface.cli.shell
+# Clone the repository
+git clone https://github.com/MB-Ndhlovu/Bantu-Os.git
+cd Bantu-Os
+
+# Layer 1: Build C init system
+cd init && make
+
+# Layer 2: Build Rust shell
+cd ../shell && cargo build --release
+
+# Layer 3 & 4: Install Python dependencies
+cd .. && pip install -e .
 ```
 
-### Running Tests
-```bash
-poetry run pytest
+---
+
+## 📦 What's Implemented
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| C Init System | ✅ | Compiles, service registry, PID 1 ready |
+| Rust Shell | ✅ | REPL skeleton, tool dispatch foundation |
+| Python AI Engine | 🔨 | LLM manager, Kernel, OpenAI provider |
+| Tool Executor | 🔨 | Dynamic tool loading, async pipeline |
+| Vector DB | 🔨 | In-memory, cosine similarity search |
+| Knowledge Graph | 🔨 | In-memory triples, traversal |
+| Secrets Manager | 🔨 | Basic encrypted store |
+| CI/CD | ✅ | GitHub Actions workflow |
+| Tests | 🔨 | Unit tests for scheduling, task manager, LLM |
+
+---
+
+## 🗺️ Roadmap
+
+```
+Phase 1 — Foundation (Current)
+├── ✅ C Init System
+├── ✅ Rust Shell skeleton
+├── 🔨 Python AI Engine
+├── 🔨 Python Services
+└── 🔨 Memory layer
+
+Phase 2 — Connectivity
+├── Messaging integration
+├── Banking / fintech APIs
+└── Crypto wallet integration
+
+Phase 3 — Ecosystem
+├── IoT smart device support
+└── Hardware prototype
+
+Phase 4 — Scale
+├── Enterprise partnerships
+└── Global rollout
 ```
 
-## Architecture Overview
+---
 
-1. **Core**: The foundation layer handling LLM integration and system services
-2. **Agents**: Manages AI agents, tasks, and API integrations
-3. **Interface**: User interaction points (CLI, with hooks for future interfaces)
-4. **Memory**: Vector database and knowledge graph for persistent storage
+## 🤝 Contributing
 
-## Contributing
+We welcome contributors of all skill levels. This is a real project with real work to do.
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a new Pull Request
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for:
+- Development setup
+- Coding standards
+- How to submit changes
+- What needs to be built next
 
+**Join the movement.** Every contribution counts.
 
+---
+
+## 📜 License
+
+MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+## 📬 Contact
+
+- **Project Lead:** Malibongwe Ndhlovu
+- **Email:** malibongwendhlovu05@gmail.com
+- **GitHub:** [MB-Ndhlovu/Bantu-Os](https://github.com/MB-Ndhlovu/Bantu-Os)
+
+---
+
+*Africa-born. World-class. Bantu-OS is more than technology — it's a statement that the future can come from here.*
