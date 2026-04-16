@@ -1,0 +1,4 @@
+# Placeholder — replace with compiled C init binary from init/main.c
+# This file is replaced at build time by build.sh when INITRAMFS_INIT is set
+echo "Bantu-OS initramfs placeholder"
+sleep infinity
