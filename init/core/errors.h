@@ -1,0 +1,22 @@
+#ifndef BANTU_ERRORS_H
+#define BANTU_ERRORS_H
+
+#include <stdint.h>
+
+#define BANTU_OK              0
+#define BANTU_ERR_BASE       -1000
+#define BANTU_ERR_INVALID    (BANTU_ERR_BASE - 1)
+#define BANTU_ERR_NULL_PTR   (BANTU_ERR_BASE - 2)
+#define BANTU_ERR_NO_MEM     (BANTU_ERR_BASE - 3)
+#define BANTU_ERR_NOT_FOUND  (BANTU_ERR_BASE - 4)
+#define BANTU_ERR_TIMEOUT    (BANTU_ERR_BASE - 5)
+#define BANTU_ERR_PERMISSION (BANTU_ERR_BASE - 6)
+#define BANTU_ERR_INVALID_SYSCALL  (BANTU_ERR_BASE - 10)
+#define BANTU_ERR_NOT_IMPLEMENTED  (BANTU_ERR_BASE - 11)
+#define BANTU_ERR_IPC_FAILED       (BANTU_ERR_BASE - 12)
+#define BANTU_ERR_BUFFER_FULL      (BANTU_ERR_BASE - 13)
+#define BANTU_ERR_QUEUE_EMPTY      (BANTU_ERR_BASE - 14)
+
+const char* bantu_strerror(int err);
+
+#endif

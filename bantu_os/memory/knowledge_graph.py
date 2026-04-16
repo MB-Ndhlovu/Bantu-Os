@@ -1,96 +1,90 @@
 """
-In-memory vector database for Bantu-OS.
-Simple embedding store using cosine similarity on numpy arrays.
+Knowledge Graph for Bantu-OS memory system.
+Nodes and edges with optional vector embedding for semantic search.
 """
-
 from __future__ import annotations
 
-import uuid
-import math
-from typing import Any, Optional
+import time
+from dataclasses import dataclass, field
+from typing import Optional
 
 
-class VectorStore:
-    """Simple in-memory vector store with cosine similarity."""
+@dataclass
+class KGNode:
+    id: str
+    label: str
+    properties: dict = field(default_factory=dict)
+    embedding: Optional[list[float]] = None
+    created_at: float = field(default_factory=time.time)
 
+
+@dataclass
+class KGEdge:
+    id: str
+    from_id: str
+    to_id: str
+    relation: str  # e.g. "knows", "part_of", "depends_on"
+    properties: dict = field(default_factory=dict)
+    weight: float = 1.0
+
+
+class KnowledgeGraph:
     def __init__(self) -> None:
-        self.vectors: list[dict[str, Any]] = []
+        self._nodes: dict[str, KGNode] = {}
+        self._edges: dict[str, KGEdge] = {}
+        self._outgoing: dict[str, list[str]] = {}  # node_id -> list of edge_ids
 
-    def add(self, text: str, embedding: Optional[list[float]] = None, metadata: Optional[dict[str, Any]] = None) -> str:
-        """Add a text entry with its embedding vector."""
-        if embedding is None:
-            embedding = self._random_embedding(len(text.split()))
-        norm = self._normalize(embedding)
-        entry_id = str(uuid.uuid4())[:8]
-        self.vectors.append({
-            "id": entry_id,
-            "text": text,
-            "embedding": norm,
-            "metadata": metadata or {},
-        })
-        return entry_id
+    def add_node(self, id: str, label: str, properties: Optional[dict] = None) -> KGNode:
+        node = KGNode(id=id, label=label, properties=properties or {})
+        self._nodes[id] = node
+        self._outgoing.setdefault(id, [])
+        return node
 
-    def search(self, query_embedding: list[float], top_k: int = 5) -> list[dict[str, Any]]:
-        """Find top_k most similar entries by cosine similarity."""
-        norm_query = self._normalize(query_embedding)
-        scored = []
-        for v in self.vectors:
-            sim = self._cosine(norm_query, v["embedding"])
-            scored.append((sim, v))
-        scored.sort(key=lambda x: x[0], reverse=True)
-        return [
-            {"id": v["id"], "text": v["text"], "score": sim, "metadata": v["metadata"]}
-            for sim, v in scored[:top_k]
-        ]
+    def add_edge(self, id: str, from_id: str, to_id: str, relation: str,
+                 properties: Optional[dict] = None, weight: float = 1.0) -> KGEdge:
+        if from_id not in self._nodes or to_id not in self._nodes:
+            raise ValueError(f"Both nodes must exist: {from_id}, {to_id}")
 
-    def search_text(self, query_text: str, top_k: int = 5) -> list[dict[str, Any]]:
-        """Search by text — generates embedding from words."""
-        words = query_text.split()
-        embedding = self._text_to_embedding(words)
-        return self.search(embedding, top_k)
+        edge = KGEdge(id=id, from_id=from_id, to_id=to_id,
+                      relation=relation, properties=properties or {}, weight=weight)
+        self._edges[id] = edge
+        self._outgoing.setdefault(from_id, []).append(id)
+        return edge
 
-    def delete(self, entry_id: str) -> bool:
-        for i, v in enumerate(self.vectors):
-            if v["id"] == entry_id:
-                self.vectors.pop(i)
-                return True
-        return False
+    def get_node(self, id: str) -> Optional[KGNode]:
+        return self._nodes.get(id)
 
-    def count(self) -> int:
-        return len(self.vectors)
+    def get_edges_from(self, node_id: str) -> list[KGEdge]:
+        edge_ids = self._outgoing.get(node_id, [])
+        return [self._edges[eid] for eid in edge_ids]
 
-    def _random_embedding(self, dim: int) -> list[float]:
-        import random
-        return [random.uniform(-1, 1) for _ in range(min(dim, 768))]
+    def get_edges_to(self, node_id: str) -> list[KGEdge]:
+        return [e for e in self._edges.values() if e.to_id == node_id]
 
-    def _normalize(self, v: list[float]) -> list[float]:
-        mag = math.sqrt(sum(x * x for x in v))
-        if mag == 0:
-            return v
-        return [x / mag for x in v]
+    def traverse(self, start_id: str, relation: str, max_depth: int = 3) -> list[KGNode]:
+        visited: set[str] = set()
+        queue: list[tuple[str, int]] = [(start_id, 0)]
+        results: list[KGNode] = []
 
-    def _cosine(self, a: list[float], b: list[float]) -> float:
-        dot = sum(x * y for x, y in zip(a, b))
-        return max(0.0, dot)
+        while queue:
+            node_id, depth = queue.pop(0)
+            if node_id in visited or depth > max_depth:
+                continue
+            visited.add(node_id)
 
-    def _text_to_embedding(self, words: list[str]) -> list[float]:
-        dim = 128
-        import random
-        random.seed(sum(ord(w) for w in words))
-        return [random.uniform(-1, 1) for _ in range(dim)]
+            node = self._nodes.get(node_id)
+            if node:
+                results.append(node)
 
+            for edge in self.get_edges_from(node_id):
+                if edge.relation == relation or relation == "*":
+                    if edge.to_id not in visited:
+                        queue.append((edge.to_id, depth + 1))
 
-# Default instance
-_default_store: Optional[VectorStore] = None
+        return results
 
-def get_store() -> VectorStore:
-    global _default_store
-    if _default_store is None:
-        _default_store = VectorStore()
-    return _default_store
+    def node_count(self) -> int:
+        return len(self._nodes)
 
-def store_text(text: str, metadata: Optional[dict[str, Any]] = None) -> str:
-    return get_store().add(text, metadata=metadata)
-
-def query_memory(query: str, top_k: int = 5) -> list[dict[str, Any]]:
-    return get_store().search_text(query, top_k=top_k)
+    def edge_count(self) -> int:
+        return len(self._edges)
