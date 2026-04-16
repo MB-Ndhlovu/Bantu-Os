@@ -1,96 +1,95 @@
-import asyncio
-import json
-import os
-import types
+"""
+Tests for agents/agent_manager.py — AgentManager, BaseAgent, and agents.
+"""
 import pytest
-
-from bantu_os.agents.agent_manager import AgentManager
-
-
-class MockKernel:
-    """Mock Kernel that returns predetermined JSON actions based on input."""
-
-    def __init__(self, plans):
-        # plans: dict of user_input -> action dict or raw string
-        self.plans = plans
-
-    async def process_input(self, text: str, system_prompt=None, context=None, temperature=0.7, max_tokens=None, **kwargs):
-        plan = self.plans.get(text)
-        if isinstance(plan, dict):
-            return json.dumps(plan)
-        return plan or "{\"action\": \"respond\", \"args\": {\"message\": \"ok\"}}"
+import asyncio
 
 
-def test_agent_manager_respond_action():
-    plans = {
-        "hello": {"thought": "no tool", "action": "respond", "args": {"message": "Hi there"}},
-    }
-    am = AgentManager(kernel=MockKernel(plans))
-    out = asyncio.run(am.execute("hello"))
-    assert out == "Hi there"
+class TestAgentToolRegistry:
+    """Tool registration on concrete agents."""
+
+    def test_register_tool(self):
+        from bantu_os.agents.agent_manager import ShellAgent
+        agent = ShellAgent()
+        agent.register_tool("add", lambda a, b: a + b)
+        assert "add" in agent._tool_registry
+
+    def test_call_tool(self):
+        from bantu_os.agents.agent_manager import ShellAgent
+        agent = ShellAgent()
+        agent.register_tool("add", lambda a, b: a + b)
+        result = asyncio.get_event_loop().run_until_complete(
+            agent.call_tool("add", {"a": 2, "b": 3})
+        )
+        assert result == 5
+
+    def test_call_tool_unknown_raises(self):
+        from bantu_os.agents.agent_manager import ShellAgent
+        agent = ShellAgent()
+        with pytest.raises(ValueError, match="Unknown tool"):
+            asyncio.get_event_loop().run_until_complete(
+                agent.call_tool("unknown", {})
+            )
 
 
-def test_agent_manager_unknown_tool():
-    plans = {
-        "do-x": {"thought": "use missing", "action": "missing_tool", "args": {"x": 1}},
-    }
-    am = AgentManager(kernel=MockKernel(plans))
-    out = asyncio.run(am.execute("do-x"))
-    assert out.startswith("Unknown tool: missing_tool")
+class TestShellAgent:
+    def test_shell_agent_runs_command(self):
+        from bantu_os.agents.agent_manager import ShellAgent
+        agent = ShellAgent()
+        result = asyncio.get_event_loop().run_until_complete(
+            agent.run("echo hello")
+        )
+        assert result.success is True
+        assert "hello" in result.output
 
 
-def test_agent_manager_calculator_tool():
-    plans = {
-        "calc": {"thought": "use calc", "action": "calculator", "args": {"expression": "2 + 2 * 3"}},
-    }
-    am = AgentManager(kernel=MockKernel(plans))
+class TestMemoryAgent:
+    def test_store_and_retrieve(self):
+        from bantu_os.agents.agent_manager import MemoryAgent
+        agent = MemoryAgent()
+        agent.store("note1", "Python is awesome")
+        results = agent.retrieve("Python")
+        assert len(results) == 1
+        assert results[0]["id"] == "note1"
 
-    from bantu_os.agents.tools import calculate
-
-    am.register_tool("calculator", calculate)
-    out = asyncio.run(am.execute("calc"))
-    assert out == "8"
-
-
-def test_agent_manager_filesystem_tool(tmp_path):
-    f = tmp_path / "a.txt"
-    f.write_text("hello")
-    d = tmp_path
-
-    plans = {
-        "ls": {"thought": "list dir", "action": "list_dir", "args": {"path": str(d)}},
-        "cat": {"thought": "read file", "action": "read_text", "args": {"path": str(f)}},
-    }
-    am = AgentManager(kernel=MockKernel(plans))
-
-    from bantu_os.agents.tools import list_dir, read_text
-
-    am.register_tool("list_dir", list_dir)
-    am.register_tool("read_text", read_text)
-
-    out_ls = asyncio.run(am.execute("ls"))
-    assert "a.txt" in out_ls
-
-    out_cat = asyncio.run(am.execute("cat"))
-    assert out_cat == "hello"
+    def test_retrieve_no_match(self):
+        from bantu_os.agents.agent_manager import MemoryAgent
+        agent = MemoryAgent()
+        agent.store("note1", "Something unrelated")
+        results = agent.retrieve("Python")
+        assert results == []
 
 
-def test_agent_manager_tool_arg_error():
-    plans = {
-        "bad": {"thought": "call", "action": "echo", "args": {"unexpected": 1}},
-    }
-    am = AgentManager(kernel=MockKernel(plans))
-    am.register_tool("echo", lambda text: text)
+class TestAgentManager:
+    def test_register_and_list_agents(self):
+        from bantu_os.agents.agent_manager import AgentManager, ShellAgent
+        mgr = AgentManager()
+        mgr.register(ShellAgent())
+        assert "shell" in mgr.list_agents()
 
-    out = asyncio.run(am.execute("bad"))
-    assert out.startswith("Tool 'echo' argument error")
+    def test_dispatch_unknown_agent_raises(self):
+        from bantu_os.agents.agent_manager import AgentManager
+        mgr = AgentManager()
+        with pytest.raises(ValueError, match="Unknown agent"):
+            asyncio.get_event_loop().run_until_complete(
+                mgr.dispatch("ghost", "hello")
+            )
 
+    def test_send_and_get_messages(self):
+        from bantu_os.agents.agent_manager import AgentManager, ShellAgent
+        mgr = AgentManager()
+        mgr.register(ShellAgent())
+        mgr.send_message("shell", "shell", "ping", {"seq": 1})
+        msgs = mgr.get_messages("shell")
+        assert len(msgs) == 1
+        assert msgs[0].type == "ping"
 
-def test_agent_manager_malformed_json_returns_raw_text():
-    plans = {
-        "weird": "This is not JSON but maybe includes {broken}",
-    }
-    am = AgentManager(kernel=MockKernel(plans))
-
-    out = asyncio.run(am.execute("weird"))
-    assert out == plans["weird"]
+    def test_dispatch_shell_agent(self):
+        from bantu_os.agents.agent_manager import AgentManager, ShellAgent
+        mgr = AgentManager()
+        mgr.register(ShellAgent())
+        result = asyncio.get_event_loop().run_until_complete(
+            mgr.dispatch("shell", "echo world")
+        )
+        assert result.success is True
+        assert "world" in result.output
