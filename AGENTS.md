@@ -20,8 +20,10 @@ BASE:    Linux Kernel
 
 - C init: ✅ Compiles and works (init/init.c)
 - Rust shell: ✅ Builds (shell/src/main.rs, shell/Cargo.toml)
-- Python AI engine: 🔨 Core exists, needs kernel tests
+- Python AI engine: ✅ Core exists, kernel tests passing
+- LLM: ✅ OpenAI + OpenRouter provider support
 - Tests: scheduling_agent (passing), task_manager (passing), llm_manager (passing)
+- **Phase 2 (skeleton): 🔨 Messaging/Fintech/Crypto services — architecture defined, stubs created**
 
 ## Workflow (Mandatory for All Agents)
 

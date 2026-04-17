@@ -8,14 +8,15 @@ from typing import Optional, Dict, Any, List
 # Provider interfaces
 from .providers.base import LLMProvider, ChatMessage, GenerateResult
 from .providers.openai_chat import OpenAIChatProvider
+from .providers.openrouter import OpenRouterProvider
 
 
 class LLMManager:
     """Manages chat LLM providers and active model selection.
 
     This class abstracts provider instantiation so callers don't depend on
-    specific vendor SDKs. Today it supports OpenAI Chat; future providers
-    (e.g., local LLaMA) can be added without changing consumers.
+    specific vendor SDKs. Today it supports OpenAI Chat and OpenRouter; 
+    future providers (e.g., local LLaMA) can be added without changing consumers.
     """
 
     def __init__(self) -> None:
@@ -27,13 +28,15 @@ class LLMManager:
         provider_key = provider.lower()
         if provider_key in {"openai", "openai-chat", "openai_chat"}:
             return OpenAIChatProvider(model=model, **kwargs)
+        if provider_key in {"openrouter", "open-router"}:
+            return OpenRouterProvider(model=model, **kwargs)
         raise ValueError(f"Unsupported provider: {provider}")
 
     def load_model(self, model_name: str, provider: str = "openai", **kwargs: Any) -> bool:
         """Instantiate and register a model provider under model_name.
 
         Example:
-            manager.load_model("default", provider="openai", model="gpt-4o")
+            manager.load_model("default", provider="openrouter", model="anthropic/claude-3.5-sonnet")
         """
         instance = self._build_provider(provider=provider, model=kwargs.pop("model", model_name), **kwargs)
         self.models[model_name] = instance
