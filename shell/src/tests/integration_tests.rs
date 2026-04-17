@@ -39,6 +39,9 @@ fn test_natural_language_parsing() {
         ("cat /etc/passwd", "cat"),
         ("where am i", "pwd"),
         ("who is the user", "whoami"),
+        ("show", "ls"),
+        ("show ./some/path", "cat"),
+        ("where is file.txt", "grep"),
     ];
     
     for (input, expected_tool) in test_cases {

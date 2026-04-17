@@ -1,0 +1,40 @@
+#!/bin/sh
+# Init script that runs inside initramfs — this is the first userspace process.
+# The kernel executes this as PID 1 after mounting the initramfs.
+# 
+# This script is a STUB — the real PID 1 binary is:
+#   init/init.c (compiled to bantu-init or initramfs/overlay/init)
+#
+# The boot flow is:
+#   kernel (PID 0) → /init in initramfs (PID 1, C init) → Python runtime
+#
+# For now, this shell stub demonstrates the expected structure.
+# Replace with compiled C init binary before production use.
+
+# --- Bootstrap mounts ---
+echo "Bantu-OS: Mounting pseudo-filesystems..."
+mount -t proc none /proc
+mount -t sysfs none /sys
+mount -t devtmpfs none /dev
+mount -t tmpfs none /run
+
+# Create socket directory
+mkdir -p /run/bantu
+
+# --- Create device nodes ---
+# These may already exist via devtmpfs, but ensure minimum set
+[ -c /dev/null ] || mknod /dev/null c 1 3
+[ -c /dev/zero ] || mknod /dev/zero c 1 5
+[ -c /dev/console ] || mknod /dev/console c 5 1 2>/dev/null || true
+
+# --- Optional: pass control to the real C init binary ---
+# If /init-real exists (compiled C init), exec into it
+# This allows the shell stub to be replaced by the real binary
+if [ -x /init-real ]; then
+    exec /init-real
+fi
+
+# --- Fallback: start a minimal shell for debugging ---
+# Only reached in emergency/debug scenarios
+echo "Bantu-OS initramfs: no init binary found. Dropping to shell."
+exec /bin/sh

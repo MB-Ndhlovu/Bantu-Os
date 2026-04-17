@@ -85,20 +85,27 @@ fn dispatch(tokens: &[String]) -> Result<(&str, Vec<&str>), String> {
         "write" | "echo" => "write",
         "readfile" | "open" => "readfile",
         "show" => {
-            // Check what "show" should do
-            if joined.contains("process") { "ps" } else { "ls" }
+            if joined.contains("process") || joined.contains("running") {
+                "ps"
+            } else if tokens.len() > 1
+                && (tokens[1].starts_with('/')
+                    || tokens[1].starts_with("./")
+                    || tokens[1].starts_with("."))
+            {
+                "cat"
+            } else {
+                "ls"
+            }
         }
-        "where" => {
-            if joined.contains("am i") || joined.contains("current") { "pwd" } else { "where" }
-        }
+        "where" => "pwd",
         _ => first,
     };
 
-    // Multi-word patterns for complex queries
-    if tool == first && first == "where" {
-        if joined.contains("am i") || joined.contains("current") {
-            return Ok(("pwd", vec![]));
-        }
+    // Handle multi-word patterns that need post-processing
+    // "where am i" / "where current" → pwd (handled in match above)
+    // "where is X" → grep (search for X)
+    if tool == "pwd" && joined.contains("where") && joined.contains("is ") {
+        return Ok(("grep", tokens[1..].iter().map(|s| s.as_str()).collect()));
     }
 
     let args: Vec<&str> = tokens[1..].iter().map(|s| s.as_str()).collect();
@@ -154,5 +161,39 @@ mod tests {
         assert_eq!(tokens.len(), 4);
         assert_eq!(tokens[0], "write");
         assert_eq!(tokens[1], "hello world");
+    }
+
+    #[test]
+    fn test_show_routes_to_cat_for_path() {
+        let result = parse("show /etc/passwd");
+        assert!(result.is_ok());
+        let call = result.unwrap();
+        assert_eq!(call.tool, "cat");
+        assert_eq!(call.args, vec!["/etc/passwd"]);
+    }
+
+    #[test]
+    fn test_show_routes_to_ls_by_default() {
+        let result = parse("show");
+        assert!(result.is_ok());
+        let call = result.unwrap();
+        assert_eq!(call.tool, "ls");
+    }
+
+    #[test]
+    fn test_show_routes_to_ps_for_processes() {
+        let result = parse("show running processes");
+        assert!(result.is_ok());
+        let call = result.unwrap();
+        assert_eq!(call.tool, "ps");
+    }
+
+    #[test]
+    fn test_where_is_this_routes_to_grep() {
+        let result = parse("where is this");
+        assert!(result.is_ok());
+        let call = result.unwrap();
+        assert_eq!(call.tool, "grep");
+        assert_eq!(call.args, vec!["is", "this"]);
     }
 }
