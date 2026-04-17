@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     LOGS_DIR: Path = BASE_DIR / "logs"
     
     # LLM Settings
-    DEFAULT_LLM_MODEL: str = "deepseek-ai/deepseek-chat-v3"
+    DEFAULT_LLM_MODEL: str = "deepseek/deepseek-chat-v3-0324"
     LLM_API_KEY: Optional[str] = None
     LLM_TEMPERATURE: float = 0.7
     
