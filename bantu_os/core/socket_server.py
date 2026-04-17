@@ -22,8 +22,17 @@ from bantu_os.core.kernel import Kernel
 class SocketServer:
     """Async Unix domain socket server that bridges Rust shell to the Python Kernel."""
 
-    def __init__(self, socket_path: str = "/tmp/bantu.sock"):
+    def __init__(
+        self,
+        socket_path: str = "/tmp/bantu.sock",
+        provider: str = "openrouter",
+        model: str = "deepseek-ai/deepseek-chat-v3",
+        api_key: str = "",
+    ):
         self.socket_path = socket_path
+        self.provider = provider
+        self.model = model
+        self.api_key = api_key or os.getenv("OPENROUTER_API_KEY", "")
         self._kernel: Optional[Kernel] = None
         self._server: Optional[asyncio.Server] = None
         self._shutdown_event = asyncio.Event()
@@ -31,7 +40,11 @@ class SocketServer:
     def _get_kernel(self) -> Kernel:
         """Lazily create a Kernel instance."""
         if self._kernel is None:
-            self._kernel = Kernel()
+            self._kernel = Kernel(
+                provider=self.provider,
+                provider_model=self.model,
+                api_key=self.api_key,
+            )
         return self._kernel
 
     async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
@@ -126,8 +139,24 @@ class SocketServer:
 
 
 async def main():
-    socket_path = "/tmp/bantu.sock"
-    server = SocketServer(socket_path)
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Bantu-OS Socket Server')
+    parser.add_argument('--socket', default='/tmp/bantu.sock', help='Socket path')
+    parser.add_argument('--provider', default='openrouter',
+                        help='LLM provider (openrouter or openai)')
+    parser.add_argument('--model', default='deepseek-ai/deepseek-chat-v3',
+                        help='Model name for the provider')
+    parser.add_argument('--api-key', default='',
+                        help='API key (or set OPENROUTER_API_KEY env var)')
+    args = parser.parse_args()
+
+    server = SocketServer(
+        socket_path=args.socket,
+        provider=args.provider,
+        model=args.model,
+        api_key=args.api_key,
+    )
 
     loop = asyncio.get_running_loop()
 

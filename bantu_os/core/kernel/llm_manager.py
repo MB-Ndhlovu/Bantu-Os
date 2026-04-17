@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any, List
 # Provider interfaces
 from .providers.base import LLMProvider, ChatMessage, GenerateResult
 from .providers.openai_chat import OpenAIChatProvider
+from .providers.openrouter import OpenRouterProvider
 
 
 class LLMManager:
@@ -25,8 +26,14 @@ class LLMManager:
 
     def _build_provider(self, provider: str, model: str, **kwargs: Any) -> LLMProvider:
         provider_key = provider.lower()
-        if provider_key in {"openai", "openai-chat", "openai_chat"}:
+        if provider_key in {
+            'openai',
+            'openai-chat',
+            'openai_chat',
+        }:
             return OpenAIChatProvider(model=model, **kwargs)
+        if provider_key in {'openrouter', 'openrouter-chat'}:
+            return OpenRouterProvider(model=model, **kwargs)
         raise ValueError(f"Unsupported provider: {provider}")
 
     def load_model(self, model_name: str, provider: str = "openai", **kwargs: Any) -> bool:

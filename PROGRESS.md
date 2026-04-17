@@ -167,3 +167,53 @@ From `AGENTS.md` — "What to Build Next" priority order:
 - **Agentic loop:** `_parse_tool_calls`, `agentic_loop` — LLM → tool call → execute → re-prompt → final response. Max iterations configurable. ✅
 - **Tool call parsing:** Brace-counting JSON decoder, handles `\"` inside tool calls correctly. ✅
 - **All kernel tests:** 43 passing (17 existing + 14 integration + 12 agentic loop)
+
+### 5. Shell-Kernel Socket Bridge ✅
+**Date:** 2026-04-17
+
+**What was done:**
+- Created `bantu_os/core/socket_server.py` — async Unix socket server
+  - Listens on `/tmp/bantu.sock`
+  - Routes `ai` commands to `kernel.agentic_loop()`
+  - JSON protocol: `{"cmd":"ai","text":"..."}` → `{"ok":true,"result":"..."}`
+  - Clean shutdown on SIGINT/SIGTERM
+- Updated `shell/src/main.rs` — socket as primary path, subprocess fallback commented
+- 43 kernel tests pass
+
+**Status:** PR #8 merged ✅
+
+### 6. Devops: CI + Makefile + Docker ✅
+**Date:** 2026-04-17
+
+**What was done:**
+- Added `Makefile` at repo root
+- Added `.devcontainer/` for VS Code dev containers
+- Added `scripts/dev_setup.sh`
+- Added `Dockerfile`
+- Added `shell/Cargo.lock` to git
+
+### 6. OpenRouter Provider ✅
+**Date:** 2026-04-17
+
+**What was done:**
+- Created `bantu_os/core/kernel/providers/openrouter.py` — OpenRouter API provider (OpenAI-compatible format, works with any OpenRouter model)
+- Updated `llm_manager.py` — registered `openrouter` and `openrouter-chat` provider keys
+- Updated `socket_server.py` — now defaults to OpenRouter + DeepSeek v3, accepts `--provider`, `--model`, `--api-key` CLI args
+
+**Usage:**
+```bash
+# With env var
+OPENROUTER_API_KEY=sk-or-... python -m bantu_os.core.socket_server
+
+# Explicit args
+python -m bantu_os.core.socket_server --provider openrouter --model deepseek-ai/deepseek-chat-v3 --api-key sk-or-...
+
+# Switch to OpenAI
+python -m bantu_os.core.socket_server --provider openai --model gpt-4o --api-key sk-...
+```
+
+**Tests:** All 9 kernel unit tests pass ✅
+
+---
+
+## PHASE 1 COMPLETE ✅
