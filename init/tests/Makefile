@@ -1,18 +1,17 @@
-# Bantu-OS Init Tests Makefile
+# bantu_os/init/tests/Makefile
 
 CC = gcc
-CFLAGS = -Wall -Wextra -g -DTEST_BUILD -I..
+CFLAGS = -Wall -Wextra -I.. -D_GNU_SOURCE
 LDFLAGS =
 
-.PHONY: all clean test run-tests
+TESTS = test_services
 
-all: test_services
+all: $(TESTS)
 
-test_services: test_services.c
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
-
-run-tests: test_services
-	./test_services
+test_services: test_services.c ../services.c ../services.h
+	$(CC) $(CFLAGS) -o $@ test_services.c ../services.c $(LDFLAGS)
 
 clean:
-	rm -f test_services
+	rm -f $(TESTS)
+
+.PHONY: all clean

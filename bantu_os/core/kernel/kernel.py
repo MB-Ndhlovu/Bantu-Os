@@ -40,7 +40,7 @@ class Kernel:
     def __init__(
         self,
         model_name: str = "default",
-        provider: str = "openai",
+        provider: str = "openrouter",
         provider_model: Optional[str] = None,
         api_key: Optional[str] = None,
         tools: Optional[Dict[str, Callable[..., Any]]] = None,
