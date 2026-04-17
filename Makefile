@@ -79,3 +79,15 @@ docker-build:
 
 docker-run:
 	docker run --rm -it bantu-os:latest
+
+# ── Boot ──────────────────────────────────────────────────────────────────
+run:
+	@if [ ! -f shell/target/release/bantu ]; then \
+		echo "Shell not built — building first..."; \
+		cd shell && cargo build --release; \
+	fi
+	./start.sh
+
+clean-all: clean
+	cd shell && cargo clean
+	cd init && make clean
