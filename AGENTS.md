@@ -24,6 +24,7 @@ BASE:    Linux Kernel
 - ChromaDB memory: ✅ Persistent vector store, 9 tests passing
 - Services: ✅ FileService, ProcessService, NetworkService
 - CI: ✅ pytest + cargo test on every push/PR
+- **Phase 2 (skeleton): 🔨 Messaging/Fintech/Crypto services — architecture defined, stubs created**
 
 ## Workflow (Mandatory for All Agents)
 
