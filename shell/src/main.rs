@@ -87,21 +87,33 @@ fn handle_shell_input(input: &str, registry: &tools::ToolRegistry) {
 
 fn handle_ai_input(input: &str) {
     let socket_path = "/tmp/bantu.sock";
-    let mut sock = std::os::unix::net::UnixStream::connect(socket_path).ok();
-    if sock.is_none() {
-        // Fall back to subprocess if socket is not available
-        handle_ai_subprocess(input);
-        return;
-    }
-    let sock = sock.unwrap();
+    let mut sock = match std::os::unix::net::UnixStream::connect(socket_path) {
+        Ok(s) => s,
+        Err(e) => {
+            println!("AI unavailable: socket connection failed ({})", e);
+            return;
+        }
+    };
+
     let request = serde_json::json!({"cmd": "ai", "text": input});
     let msg = serde_json::to_string(&request).unwrap();
-    let mut sock = sock;
     use std::io::{Read, Write};
-    sock.write_all(msg.as_bytes()).unwrap();
-    sock.write_all(b"\n").unwrap();
+    if let Err(e) = sock.write_all(msg.as_bytes()) {
+        println!("AI unavailable: write failed ({})", e);
+        return;
+    }
+    if let Err(e) = sock.write_all(b"\n") {
+        println!("AI unavailable: write failed ({})", e);
+        return;
+    }
     let mut response = String::new();
-    sock.read_to_string(&mut response).unwrap();
+    match sock.read_to_string(&mut response) {
+        Ok(_) => {}
+        Err(e) => {
+            println!("AI unavailable: read failed ({})", e);
+            return;
+        }
+    }
     if let Ok(resp) = serde_json::from_str::<serde_json::Value>(&response) {
         if resp["ok"].as_bool() == Some(true) {
             println!("{}", resp["result"].as_str().unwrap_or("(no response)"));
@@ -113,6 +125,9 @@ fn handle_ai_input(input: &str) {
     }
 }
 
+// DEBUG: subprocess fallback kept for manual debugging only.
+// Uncomment below and comment out handle_ai_input body to use subprocess mode.
+/*
 fn handle_ai_subprocess(input: &str) {
     let script = format!(
         "cd /home/workspace/bantu_os && python3 -c \"\nimport sys\nfrom bantu_os.core.kernel import Kernel\nimport asyncio\nk = Kernel()\nresult = asyncio.run(k.process_input('{}'))\nprint(result)\n\"",
@@ -135,3 +150,4 @@ fn handle_ai_subprocess(input: &str) {
         Err(e) => println!("AI unavailable: {}", e),
     }
 }
+*/
