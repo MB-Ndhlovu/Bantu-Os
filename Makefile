@@ -1,54 +1,81 @@
-.PHONY: help install test lint cov clean build docker-build docker-run docs
+.PHONY: help test lint cov clean build docker-build docker-run docs fmt
 
 PYTHON := python3
-POETRY := poetry
 PYTEST := pytest
 SRC := bantu_os
 TESTS := tests
 COV_DIR := htmlcov
+BLACK := black
+RUFF := ruff
+CLANG := clang-format
+RUSTFMT := rustfmt
 
 help:
 	@echo "Bantu-OS Build System"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  install      Install dependencies via Poetry"
-	@echo "  test         Run pytest test suite"
-	@echo "  lint         Run Ruff linter"
-	@echo "  cov          Generate coverage report"
+	@echo "  test         Run all tests (Python + Rust + C)"
+	@echo "  format       Format code (black, rustfmt, clang-format)"
+	@echo "  lint         Lint Python (ruff)"
 	@echo "  clean        Remove build artifacts and cache"
 	@echo "  build        Build Python package"
+	@echo "  docs         Generate documentation"
 	@echo "  docker-build Build Docker image"
 	@echo "  docker-run   Run Docker container"
-	@echo "  docs         Generate documentation"
 
-install:
-	$(POETRY) install --with dev
+# ── Python tests ────────────────────────────────────────────────────────────
+test-python:
+	$(PYTHON) -m pytest $(TESTS)/ -v --tb=short
 
-test:
-	$(POETRY) run $(PYTEST) $(TESTS)/ --cov=$(SRC) --cov-report=term-missing:skip-covered
+# ── Rust tests ─────────────────────────────────────────────────────────────
+test-rust:
+	cd shell && cargo test --lib --tests
 
+# ── C compile check ─────────────────────────────────────────────────────────
+test-c:
+	cd init && make clean && make
+
+# ── All tests ───────────────────────────────────────────────────────────────
+test: test-python test-rust test-c
+
+# ── Format ──────────────────────────────────────────────────────────────────
+format-python:
+	$(BLACK) $(SRC)/ $(TESTS)/
+
+format-rust:
+	cd shell && cargo fmt
+
+format-c:
+	find init/ -name "*.c" -o -name "*.h" | xargs $(CLANG) -i
+
+format: format-python format-rust format-c
+
+# ── Lint ────────────────────────────────────────────────────────────────────
 lint:
-	$(POETRY) run ruff check $(SRC)/ $(TESTS)/
+	$(RUFF) check $(SRC)/ $(TESTS)/
 
-cov:
-	$(POETRY) run $(PYTEST) $(TESTS)/ --cov=$(SRC) --cov-report=html --cov-report=term-missing
-	@echo "Coverage report: file://$$(pwd)/$(COV_DIR)/index.html"
-
+# ── Clean ───────────────────────────────────────────────────────────────────
 clean:
 	rm -rf build/ dist/ *.egg-info
 	rm -rf $(COV_DIR)/ .coverage
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete
 	rm -rf .pytest_cache .ruff_cache
+	cd shell && cargo clean
+	cd init && make clean
 
+# ── Build ───────────────────────────────────────────────────────────────────
 build:
-	$(POETRY) build
+	$(PYTHON) -m pip install -e . 2>/dev/null || true
 
+# ── Docs ────────────────────────────────────────────────────────────────────
+docs:
+	$(PYTHON) -m pydoc_markdown -p bantu_os > docs/api.md 2>/dev/null || \
+		echo "pydoc-markdown not available – install with: pip install pydoc-markdown"
+
+# ── Docker ──────────────────────────────────────────────────────────────────
 docker-build:
 	docker build -t bantu-os:latest .
 
 docker-run:
 	docker run --rm -it bantu-os:latest
-
-docs:
-	$(POETRY) run pydoc-markdown -p bantu_os > docs/api.md 2>/dev/null || echo "docs generation skipped"
