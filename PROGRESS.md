@@ -142,3 +142,6 @@ From `AGENTS.md` — "What to Build Next" priority order:
 - **Total Python kernel tests:** 31 passing
 - **CI enhanced:** Rust test step added
 - **Progress file created:** `bantu_os/PROGRESS.md`
+- **Agentic loop:** `_parse_tool_calls`, `agentic_loop` — LLM → tool call → execute → re-prompt → final response. Max iterations configurable. ✅
+- **Tool call parsing:** Brace-counting JSON decoder, handles `\"` inside tool calls correctly. ✅
+- **All kernel tests:** 43 passing (17 existing + 14 integration + 12 agentic loop)
