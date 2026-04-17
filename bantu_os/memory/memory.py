@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 import numpy as np
 
-from .vector_store import VectorStore, VectorDBStore
+from .vector_store import VectorStore, VectorDBStore, ChromaVectorStore
 from .embeddings.base import EmbeddingsProvider
 
 
@@ -30,7 +30,7 @@ class Memory:
         embeddings: Optional[EmbeddingsProvider] = None,
         dim: int = 768,
     ) -> None:
-        self.store = store or VectorDBStore(dim=dim)
+        self.store = store or ChromaVectorStore(dim=dim)
         self.embeddings = embeddings  # optional: caller may provide later
         self.dim = dim
         

@@ -106,16 +106,38 @@ python -m pytest tests/kernel/ -v  # 31 tests pass
   - Rust shell tests now run on every push/PR
 - Updated `shell/src/tests/integration_tests.rs` with dispatch fixes
 
+### 4. ChromaDB Memory Integration ✅
+**Date:** 2026-04-17
+
+**What was done:**
+- Added ChromaVectorStore class in `vector_store.py` — persistent ChromaDB-backed vector store with in-memory fallback
+- Memory class now defaults to ChromaVectorStore instead of VectorDBStore
+- Added `count()` and `clear()` methods to ChromaVectorStore
+- ChromaDB installed (`pip install chromadb`)
+- Created `tests/memory/test_chroma_integration.py` — 9 new tests
+
+**Results:**
+```
+python -m pytest tests/memory/test_chroma_integration.py  # 9 passed
+python -m pytest tests/kernel/ tests/memory/              # 52 passed total
+```
+
+**Updated:**
+- `bantu_os/memory/__init__.py` — exports ChromaVectorStore
+- `bantu_os/memory/memory.py` — defaults to ChromaVectorStore
+- `bantu_os/memory/vector_store.py` — full ChromaVectorStore implementation
+
 ---
 
 ## What's Remaining
 
 | Priority | Item | Notes |
 |----------|------|-------|
-| 4 | ChromaDB memory integration | Layer 3 — brain memory for AI engine |
-| 5 | Architecture docs | SPEC.md already exists, update if needed |
-| 6 | Python service APIs | Already built and tested, just need wiring into kernel |
-| 7 | AI-native shell UX | polish REPL, rustyline history, tab completion |
+| 5 | Shell-to-kernel socket connection | Rust shell → Python kernel over Unix socket |
+| 6 | AI-native shell UX | Polish REPL, history, tab completion |
+| 7 | C init integration | Service registry wiring into the C init system |
+
+**Python AI Engine Phase 1 — COMPLETE.** Layer 3 is done: kernel, llm_manager, agentic loop, memory with ChromaDB. Moving to Layer 2↔Layer 3 wiring next.
 
 ---
 
