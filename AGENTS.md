@@ -19,10 +19,11 @@ BASE:    Linux Kernel
 ## Current Project State
 
 - C init: ✅ Compiles and works (init/init.c)
-- Rust shell: ✅ Builds (shell/src/main.rs, shell/Cargo.toml)
-- Python AI engine: ✅ Core exists, kernel tests passing
-- LLM: ✅ OpenAI + OpenRouter provider support
-- Tests: scheduling_agent (passing), task_manager (passing), llm_manager (passing)
+- Rust shell: ✅ Builds (shell/src/main.rs, shell/Cargo.toml), 13 tests passing
+- Python AI engine: ✅ Kernel, LLM manager, agentic loop, 43 tests passing
+- ChromaDB memory: ✅ Persistent vector store, 9 tests passing
+- Services: ✅ FileService, ProcessService, NetworkService
+- CI: ✅ pytest + cargo test on every push/PR
 - **Phase 2 (skeleton): 🔨 Messaging/Fintech/Crypto services — architecture defined, stubs created**
 
 ## Workflow (Mandatory for All Agents)
@@ -40,12 +41,10 @@ BASE:    Linux Kernel
 
 ## What to Build Next (Priority Order)
 
-1. Rust shell tool dispatch (shell/src/main.rs → parse.rs)
-2. Python kernel integration tests
-3. Python service APIs (file, process, network)
-4. ChromaDB memory integration
-5. CI: add cargo test
-6. Architecture docs (SPEC.md already done)
+1. Shell-to-kernel socket connection (Rust shell → Python kernel over Unix socket)
+2. AI-native shell UX (polish REPL, history, tab completion)
+3. C init integration (service registry wiring into the C init system)
+4. Phase 2: Connectivity (messaging, fintech APIs, crypto wallet)
 
 ## Commit Convention
 
