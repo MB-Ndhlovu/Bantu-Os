@@ -1,63 +1,51 @@
-# Security module for Bantu-OS
-# Provides secrets management, input sanitization, and privilege model
+"""
+Bantu-OS Security Primitives
 
-from .secrets import (
-    SecretsVault,
-    get_vault,
-    get_secret,
-    set_secret,
-    delete_secret,
-    list_secrets,
-    get_audit_log,
+This package provides security-critical functionality for Bantu-OS:
+- secrets: Secure secrets management
+- sanitizer: Input sanitization for prompt injection defense
+- privilege: Privilege model and action classification
+"""
+
+from security.secrets import SecretsManager, get_secret, get_manager
+from security.sanitizer import (
+    InputSanitizer,
+    SanitizeResult,
+    ValidationResult,
+    sanitize,
+    SanitizerError,
+    InputTooLongError,
+    ControlCharacterError,
+    InjectionDetectedError,
+    PathTraversalError,
 )
-
-from .sanitizer import (
-    SanitizationError,
-    sanitize_path,
-    sanitize_url,
-    sanitize_cmd_arg,
-    sanitize_cmd_args,
-    sanitize_tool_args,
-    sanitize_tool_name,
-    sanitize_prompt,
-    sanitize_content,
-)
-
-from .privilege import (
+from security.privilege import (
+    PrivilegeModel,
     PrivilegeLevel,
-    PrivilegeResult,
-    get_privilege,
-    check_privilege,
-    set_privilege,
-    require_confirmation,
+    Action,
+    requires_confirmation,
     is_allowed,
 )
 
 __all__ = [
     # Secrets
-    "SecretsVault",
-    "get_vault",
+    "SecretsManager",
     "get_secret",
-    "set_secret",
-    "delete_secret",
-    "list_secrets",
-    "get_audit_log",
+    "get_manager",
     # Sanitizer
-    "SanitizationError",
-    "sanitize_path",
-    "sanitize_url",
-    "sanitize_cmd_arg",
-    "sanitize_cmd_args",
-    "sanitize_tool_args",
-    "sanitize_tool_name",
-    "sanitize_prompt",
-    "sanitize_content",
+    "InputSanitizer",
+    "SanitizeResult",
+    "ValidationResult",
+    "sanitize",
+    "SanitizerError",
+    "InputTooLongError",
+    "ControlCharacterError",
+    "InjectionDetectedError",
+    "PathTraversalError",
     # Privilege
+    "PrivilegeModel",
     "PrivilegeLevel",
-    "PrivilegeResult",
-    "get_privilege",
-    "check_privilege",
-    "set_privilege",
-    "require_confirmation",
+    "Action",
+    "requires_confirmation",
     "is_allowed",
 ]

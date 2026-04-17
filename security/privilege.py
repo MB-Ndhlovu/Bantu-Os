@@ -1,152 +1,253 @@
 """
-Privilege Model for Bantu-OS
+Bantu-OS Privilege Model
 
-Defines which operations require user confirmation vs. can be
-executed autonomously by the AI assistant.
-
-Privilege Levels:
-- AUTO: AI can execute without confirmation
-- CONFIRM: AI requests permission, user must approve
-- DENY: AI cannot execute, requires user to run directly
+Defines what actions require user confirmation vs. auto-approved.
+Each action is classified by risk level.
 """
 
 from __future__ import annotations
 
-import enum
-from typing import Any, Callable, Optional
+import re
+from dataclasses import dataclass, field
+from enum import Enum, auto
+from typing import Callable, Optional
 
 
-class PrivilegeLevel(enum.IntEnum):
-    """Capability-based privilege levels for tool execution."""
-    AUTO = 0      # AI executes autonomously
-    CONFIRM = 1   # User must confirm before execution
-    DENY = 2      # Blocked for AI; user must run directly
+class PrivilegeLevel(Enum):
+    """Classification of privilege for an action."""
+    AUTO = auto()      # No confirmation needed
+    CONFIRM = auto()  # User must explicitly approve
+    DENY = auto()     # Never allowed
 
 
-class PrivilegeResult:
-    """Outcome of a privilege check."""
-    def __init__(
-        self,
-        allowed: bool,
-        level: PrivilegeLevel,
-        reason: str = "",
-        requires_confirmation: bool = False,
-    ):
-        self.allowed = allowed
-        self.level = level
-        self.reason = reason
-        self.requires_confirmation = requires_confirmation
-
-    def __bool__(self) -> bool:
-        return self.allowed
+@dataclass
+class Action:
+    """Represents a potentially privileged action."""
+    name: str
+    description: str
+    level: PrivilegeLevel
+    patterns: list[re.Pattern] = field(default_factory=list)
+    callback: Optional[Callable[[], bool]] = None
 
 
-# Default privilege registry
-TOOL_PRIVILEGES: dict[str, PrivilegeLevel] = {
-    # === AUTO (Level 0): Safe, routine operations ===
-    "filesystem.read":         PrivilegeLevel.AUTO,
-    "filesystem.list":         PrivilegeLevel.AUTO,
-    "calculator.calculate":     PrivilegeLevel.AUTO,
-    "web_search.search":       PrivilegeLevel.AUTO,
-    "browser.open":            PrivilegeLevel.AUTO,
-    "browser.screenshot":      PrivilegeLevel.AUTO,
-    "memory.store":            PrivilegeLevel.AUTO,
-    "memory.retrieve":         PrivilegeLevel.AUTO,
-    "scheduler.list":          PrivilegeLevel.AUTO,
-    "scheduler.get":           PrivilegeLevel.AUTO,
-    "scheduler.pending":       PrivilegeLevel.AUTO,
-    "file_service.read":       PrivilegeLevel.AUTO,
-    "file_service.list":       PrivilegeLevel.AUTO,
-    "knowledge_graph.query":   PrivilegeLevel.AUTO,
-    "knowledge_graph.traverse": PrivilegeLevel.AUTO,
-
-    # === CONFIRM (Level 1): Potentially destructive or far-reaching ===
-    "filesystem.write":        PrivilegeLevel.CONFIRM,
-    "filesystem.delete":       PrivilegeLevel.CONFIRM,
-    "filesystem.move":         PrivilegeLevel.CONFIRM,
-    "filesystem.copy":         PrivilegeLevel.CONFIRM,
-    "network.request":         PrivilegeLevel.CONFIRM,
-    "browser.click":           PrivilegeLevel.CONFIRM,
-    "browser.fill":            PrivilegeLevel.CONFIRM,
-    "browser.submit":          PrivilegeLevel.CONFIRM,
-    "scheduler.create":        PrivilegeLevel.CONFIRM,
-    "scheduler.cancel":        PrivilegeLevel.CONFIRM,
-    "scheduler.update":       PrivilegeLevel.CONFIRM,
-    "memory.forget":           PrivilegeLevel.CONFIRM,
-    "knowledge_graph.add_node":  PrivilegeLevel.CONFIRM,
-    "knowledge_graph.add_edge":  PrivilegeLevel.CONFIRM,
-    "file_service.write":      PrivilegeLevel.CONFIRM,
-    "file_service.delete":     PrivilegeLevel.CONFIRM,
-
-    # === DENY (Level 2): Never execute autonomously ===
-    "process.spawn":           PrivilegeLevel.DENY,
-    "process.kill":            PrivilegeLevel.DENY,
-    "service.restart":         PrivilegeLevel.DENY,
-    "service.stop":            PrivilegeLevel.DENY,
-    "service.start":           PrivilegeLevel.DENY,
-    "package.install":         PrivilegeLevel.DENY,
-    "package.remove":          PrivilegeLevel.DENY,
-    "user.create":            PrivilegeLevel.DENY,
-    "user.delete":            PrivilegeLevel.DENY,
-    "secrets.set":             PrivilegeLevel.DENY,
-    "secrets.delete":         PrivilegeLevel.DENY,
-    "shell.exec":             PrivilegeLevel.DENY,
-}
-
-
-def get_privilege(tool_name: str) -> PrivilegeLevel:
-    """Get the privilege level for a tool."""
-    return TOOL_PRIVILEGES.get(tool_name, PrivilegeLevel.CONFIRM)
-
-
-def check_privilege(
-    tool_name: str,
-    args: Optional[dict[str, Any]] = None,
-    user_id: Optional[str] = None,
-) -> PrivilegeResult:
+class PrivilegeModel:
     """
-    Check if an AI can execute a tool at a given privilege level.
+    Manages privilege classification for AI actions.
 
-    Returns a PrivilegeResult with the decision and metadata.
+    Actions are checked in order; first match determines the privilege level.
     """
-    level = get_privilege(tool_name)
 
-    if level == PrivilegeLevel.AUTO:
-        return PrivilegeResult(
-            allowed=True,
-            level=level,
-            reason="Tool is in auto-execute allowlist",
-            requires_confirmation=False,
+    def __init__(self):
+        self._actions: list[Action] = []
+        self._setup_default_actions()
+
+    def _setup_default_actions(self) -> None:
+        """Register the default action classifications."""
+
+        # === AUTO-APPROVE (low risk) ===
+        self.register(Action(
+            name="read_public",
+            description="Read public documentation and knowledge",
+            level=PrivilegeLevel.AUTO,
+            patterns=[
+                re.compile(r"^read\s+public\s+", re.IGNORECASE),
+                re.compile(r"^what(is|are)\s+\w+\s*\??$", re.IGNORECASE),
+                re.compile(r"^explain\s+", re.IGNORECASE),
+                re.compile(r"^help\s+", re.IGNORECASE),
+            ],
+        ))
+
+        self.register(Action(
+            name="calculate",
+            description="Perform calculations and data transformations",
+            level=PrivilegeLevel.AUTO,
+            patterns=[
+                re.compile(r"^calc(ulate)?\s+", re.IGNORECASE),
+                re.compile(r"^convert\s+", re.IGNORECASE),
+                re.compile(r"^compute\s+", re.IGNORECASE),
+            ],
+        ))
+
+        self.register(Action(
+            name="display_user_file",
+            description="Display the user's own files",
+            level=PrivilegeLevel.AUTO,
+            patterns=[
+                re.compile(r"^cat\s+[~/][^\s]+$"),
+                re.compile(r"^show\s+(me\s+)?(my\s+)?", re.IGNORECASE),
+                re.compile(r"^display\s+", re.IGNORECASE),
+            ],
+        ))
+
+        # === CONFIRM REQUIRED (medium-high risk) ===
+        self.register(Action(
+            name="file_write",
+            description="Write or modify files outside home directory",
+            level=PrivilegeLevel.CONFIRM,
+            patterns=[
+                re.compile(r"^write\s+", re.IGNORECASE),
+                re.compile(r"^create\s+file\s+", re.IGNORECASE),
+                re.compile(r"^edit\s+", re.IGNORECASE),
+                re.compile(r"^save\s+", re.IGNORECASE),
+            ],
+        ))
+
+        self.register(Action(
+            name="network_request",
+            description="Make network requests to third parties",
+            level=PrivilegeLevel.CONFIRM,
+            patterns=[
+                re.compile(r"^fetch\s+", re.IGNORECASE),
+                re.compile(r"^curl\s+", re.IGNORECASE),
+                re.compile(r"^wget\s+", re.IGNORECASE),
+                re.compile(r"^http\s+", re.IGNORECASE),
+                re.compile(r"^api\s+", re.IGNORECASE),
+            ],
+        ))
+
+        self.register(Action(
+            name="execute_script",
+            description="Run scripts or executables",
+            level=PrivilegeLevel.CONFIRM,
+            patterns=[
+                re.compile(r"^run\s+", re.IGNORECASE),
+                re.compile(r"^exec(ute)?\s+", re.IGNORECASE),
+                re.compile(r"^bash\s+", re.IGNORECASE),
+                re.compile(r"^python\s+", re.IGNORECASE),
+            ],
+        ))
+
+        self.register(Action(
+            name="access_secrets",
+            description="Access credential or secrets store",
+            level=PrivilegeLevel.CONFIRM,
+            patterns=[
+                re.compile(r"^get\s+secret", re.IGNORECASE),
+                re.compile(r"^read\s+(api\s+)?key", re.IGNORECASE),
+                re.compile(r"^credential", re.IGNORECASE),
+            ],
+        ))
+
+        self.register(Action(
+            name="system_config",
+            description="Modify system configuration",
+            level=PrivilegeLevel.CONFIRM,
+            patterns=[
+                re.compile(r"^sudo\s+", re.IGNORECASE),
+                re.compile(r"^chmod\s+", re.IGNORECASE),
+                re.compile(r"^chown\s+", re.IGNORECASE),
+                re.compile(r"^systemctl\s+", re.IGNORECASE),
+                re.compile(r"^set\s+env(ironment)?\s+", re.IGNORECASE),
+            ],
+        ))
+
+        # === DENY (high risk / never allowed) ===
+        self.register(Action(
+            name="disable_security",
+            description="Disable or bypass security controls",
+            level=PrivilegeLevel.DENY,
+            patterns=[
+                re.compile(r"^disable\s+(security|firewall|selinux|apparmor)", re.IGNORECASE),
+                re.compile(r"^turn\s+off\s+(security|firewall)", re.IGNORECASE),
+                re.compile(r"^unset\s+ENFORCE", re.IGNORECASE),
+            ],
+        ))
+
+        self.register(Action(
+            name="privilege_escalation",
+            description="Attempt to gain elevated privileges",
+            level=PrivilegeLevel.DENY,
+            patterns=[
+                re.compile(r"^sudo\s+su\b"),
+                re.compile(r"^su\s+-?\s*root"),
+                re.compile(r"^chmod\s+777\s+"),
+                re.compile(r"^passwd\s+root"),
+            ],
+        ))
+
+        self.register(Action(
+            name="boot_tampering",
+            description="Modify boot chain or init",
+            level=PrivilegeLevel.DENY,
+            patterns=[
+                re.compile(r"^modify\s+grub", re.IGNORECASE),
+                re.compile(r"^edit\s+/boot/", re.IGNORECASE),
+                re.compile(r"^inject\s+(into\s+)?init", re.IGNORECASE),
+                re.compile(r"^replace\s+(kernel|systemd)", re.IGNORECASE),
+            ],
+        ))
+
+        self.register(Action(
+            name="secret_exfiltration",
+            description="Extract or exfiltrate secrets",
+            level=PrivilegeLevel.DENY,
+            patterns=[
+                re.compile(r"^print\s+env\s*$", re.IGNORECASE),
+                re.compile(r"^echo\s+\$", re.IGNORECASE),
+                re.compile(r"^export\s+$", re.IGNORECASE),
+                re.compile(r"^read\s+/proc/\d+/environ", re.IGNORECASE),
+            ],
+        ))
+
+    def register(self, action: Action) -> None:
+        """Register an action classification."""
+        self._actions.append(action)
+
+    def classify(self, user_input: str) -> tuple[Action, PrivilegeLevel]:
+        """
+        Classify user input against registered actions.
+
+        Returns:
+            Tuple of (matched Action, PrivilegeLevel).
+        """
+        for action in self._actions:
+            for pattern in action.patterns:
+                if pattern.search(user_input):
+                    return action, action.level
+        # Default: require confirmation for unknown actions
+        return Action(
+            name="unknown",
+            description="Unknown action",
+            level=PrivilegeLevel.CONFIRM,
+        ), PrivilegeLevel.CONFIRM
+
+    def requires_confirmation(self, user_input: str) -> bool:
+        """Check if input requires user confirmation."""
+        _, level = self.classify(user_input)
+        return level == PrivilegeLevel.CONFIRM
+
+    def is_allowed(self, user_input: str) -> bool:
+        """Check if input is allowed (not denied)."""
+        _, level = self.classify(user_input)
+        return level != PrivilegeLevel.DENY
+
+    def get_confirmation_prompt(self, user_input: str) -> str:
+        """Get a human-readable confirmation prompt."""
+        action, _ = self.classify(user_input)
+        return (
+            f"⚠️ This action ({action.name}) requires confirmation:\n"
+            f"{action.description}\n\n"
+            f"Proceed?"
         )
 
-    if level == PrivilegeLevel.DENY:
-        return PrivilegeResult(
-            allowed=False,
-            level=level,
-            reason="Tool is blocked for autonomous AI execution",
-            requires_confirmation=False,
-        )
 
-    # CONFIRM level
-    return PrivilegeResult(
-        allowed=True,
-        level=level,
-        reason="Tool requires user confirmation before execution",
-        requires_confirmation=True,
-    )
+# Global instance
+_default_model: Optional[PrivilegeModel] = None
 
 
-def set_privilege(tool_name: str, level: PrivilegeLevel) -> None:
-    """Override the privilege level for a specific tool."""
-    TOOL_PRIVILEGES[tool_name] = level
+def get_model() -> PrivilegeModel:
+    """Get the default privilege model instance."""
+    global _default_model
+    if _default_model is None:
+        _default_model = PrivilegeModel()
+    return _default_model
 
 
-def require_confirmation(tool_name: str) -> bool:
-    """Shorthand: returns True if the tool requires user confirmation."""
-    return get_privilege(tool_name) == PrivilegeLevel.CONFIRM
+def requires_confirmation(user_input: str) -> bool:
+    """Convenience function to check if input requires confirmation."""
+    return get_model().requires_confirmation(user_input)
 
 
-def is_allowed(tool_name: str) -> bool:
-    """Shorthand: returns True if the tool can be executed by AI (with or without confirm)."""
-    level = get_privilege(tool_name)
-    return level != PrivilegeLevel.DENY
+def is_allowed(user_input: str) -> bool:
+    """Convenience function to check if input is allowed."""
+    return get_model().is_allowed(user_input)

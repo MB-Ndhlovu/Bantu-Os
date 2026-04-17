@@ -1,310 +1,262 @@
 """
-Input Sanitizer for Bantu-OS
+Bantu-OS Input Sanitizer
 
-Prevents prompt injection and input-based attacks by sanitizing
-all user input before it reaches the AI context or tool dispatch.
+Provides defense-in-depth against prompt injection attacks.
 
-Rejection triggers:
-- Null bytes (\x00)
-- Path traversal (../, ..\\)
-- Shell metacharacters in argument contexts
-- Injection patterns ({{, ${, <%, -->)
-- Overlong UTF-8 / encoding anomalies
+Layer 1 (Rust shell): Syntax filtering, length limits, control char rejection
+Layer 2 (Python engine): Semantic context injection, delimiter escaping
+Layer 3 (Python engine): Output redaction
 """
 
 from __future__ import annotations
 
-import os
 import re
-import urllib.parse
-from pathlib import Path
-from typing import Any, Optional
+import unicodedata
+from dataclasses import dataclass
+from enum import Enum, auto
+from typing import Optional
 
-# Maximum lengths per input type
-MAX_PATH_LEN = 4096
-MAX_URL_LEN = 2048
-MAX_CMD_ARGS_LEN = 65536
-MAX_CONTENT_LEN = 16 * 1024 * 1024  # 16MB
 
-# Allowed characters per input type
-RE_PATH_COMPONENT = re.compile(r"^[a-zA-Z0-9_\-./ ]+$")
-RE_URL_PATH = re.compile(r"^[a-zA-Z0-9_\-./?#&=+%]+$")
-RE_CMD_ARG = re.compile(r"^[a-zA-Z0-9_\-./:+=,@%]+$")
+# === Constants ===
 
-# Dangerous patterns that always trigger rejection
-DANGEROUS_PATTERNS = [
-    (re.compile(r"\x00"), "null_byte"),
-    (re.compile(r"\.\.[/\\]"), "path_traversal"),
-    (re.compile(r"[|;&]`"), "shell_metachar"),
-    (re.compile(r"\$\("), "command_substitution"),
-    (re.compile(r"\{\{"), "template_injection"),
-    (re.compile(r"<%"), "server_side_injection"),
-    (re.compile(r"<!--"), "html_comment_injection"),
-    (re.compile(r"\x1b\["), "ansi_escape"),
-    (re.compile(r"%0a|%0d", re.IGNORECASE), "url_newline_injection"),
+MAX_INPUT_LENGTH = 64_000
+MAX_LINE_LENGTH = 10_000
+
+# Prompt injection delimiters — patterns that attempt to override system behavior
+INJECTION_PATTERNS = [
+    re.compile(r"---[\s]*system[\s]*---", re.IGNORECASE),
+    re.compile(r"===[\s]*(instruction|system|admin)[\s]*===", re.IGNORECASE),
+    re.compile(r"###[\s]*(system|admin|root|override)[\s]*###", re.IGNORECASE),
+    re.compile(r"<system>", re.IGNORECASE),
+    re.compile(r"{{[\s]*system[\s]*}}", re.IGNORECASE),
+    re.compile(r"\[SYSTEM\]", re.IGNORECASE),
+    re.compile(r"^\s*SYSTEM\s*:", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^__system__\s*:", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^ROOT\s*:", re.IGNORECASE | re.MULTILINE),
 ]
 
-# Schema for tool argument validation
-TOOL_ARG_SCHEMAS: dict[str, dict[str, Any]] = {
-    "filesystem.read": {
-        "path": {"type": "path", "max_len": MAX_PATH_LEN},
-    },
-    "filesystem.write": {
-        "path": {"type": "path", "max_len": MAX_PATH_LEN},
-        "content": {"type": "content", "max_len": MAX_CONTENT_LEN},
-    },
-    "filesystem.delete": {
-        "path": {"type": "path", "max_len": MAX_PATH_LEN},
-    },
-    "filesystem.list": {
-        "path": {"type": "path", "max_len": MAX_PATH_LEN},
-    },
-    "network.request": {
-        "url": {"type": "url", "max_len": MAX_URL_LEN},
-        "method": {"type": "enum", "values": ["GET", "POST", "PUT", "DELETE", "PATCH"]},
-    },
-    "process.spawn": {
-        "cmd": {"type": "cmd", "max_len": MAX_CMD_ARGS_LEN},
-        "args": {"type": "cmd_args_list"},
-    },
-}
+# Control characters that should never appear in valid user input
+CONTROL_CHARS = re.compile(
+    r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]"
+)
+
+# Paths that should never be exposed to or manipulable by user input
+INTERNAL_PATHS = re.compile(
+    r"(\.bantu|/run/bantu|/etc/bantu-secrets|\.bashrc|\.profile)"
+)
 
 
-class SanitizationError(ValueError):
-    """Raised when input fails sanitization."""
-    def __init__(self, reason: str, field: str = ""):
-        self.reason = reason
-        self.field = field
-        super().__init__(f"Sanitization failed for '{field}': {reason}")
+class SanitizerError(Exception):
+    """Base exception for sanitizer errors."""
+    pass
 
 
-def sanitize_path(path: str, allow_absolute: bool = False) -> str:
+class InputTooLongError(SanitizerError):
+    """Input exceeds maximum allowed length."""
+    pass
+
+
+class ControlCharacterError(SanitizerError):
+    """Input contains forbidden control characters."""
+    pass
+
+
+class InjectionDetectedError(SanitizerError):
+    """Input matches known prompt injection pattern."""
+    pass
+
+
+class PathTraversalError(SanitizerError):
+    """Input attempts to access internal paths."""
+    pass
+
+
+class ValidationResult(Enum):
+    """Result of input validation."""
+    VALID = auto()
+    REJECTED = auto()
+    ESCAPED = auto()
+
+
+@dataclass
+class SanitizeResult:
+    """Result of sanitization."""
+    status: ValidationResult
+    cleaned_input: str
+    warnings: list[str]
+
+    @property
+    def is_valid(self) -> bool:
+        return self.status != ValidationResult.REJECTED
+
+
+def detect_injection(text: str) -> Optional[re.Match]:
     """
-    Sanitize a filesystem path.
+    Check if text matches known injection patterns.
 
-    - Must resolve within allowed directories
-    - No null bytes, traversal, or special characters
-    - If allow_absolute=False, must be relative to workspace
+    Returns:
+        Match object if injection detected, None otherwise.
     """
-    if not path:
-        raise SanitizationError("empty path", "path")
-    if len(path) > MAX_PATH_LEN:
-        raise SanitizationError(f"exceeds {MAX_PATH_LEN} chars", "path")
-
-    for pattern, name in DANGEROUS_PATTERNS:
-        if pattern.search(path):
-            raise SanitizationError(f"dangerous pattern: {name}", "path")
-
-    if ".." in path:
-        raise SanitizationError("path traversal", "path")
-
-    # Resolve symlinks and check it stays within workspace
-    try:
-        resolved = Path(path).resolve()
-        workspace = Path(os.environ.get("BANTU_WORKSPACE", "/home/workspace"))
-        z_path = Path("/home/.z")
-
-        if not allow_absolute:
-            try:
-                resolved.relative_to(workspace)
-            except ValueError:
-                try:
-                    resolved.relative_to(z_path)
-                except ValueError:
-                    raise SanitizationError("path outside workspace", "path")
-    except Exception as e:
-        raise SanitizationError(f"invalid path: {e}", "path")
-
-    # Check allowed characters in each component
-    for part in Path(path).parts:
-        if part != "." and not RE_PATH_COMPONENT.match(part):
-            raise SanitizationError(f"invalid char in component: {part!r}", "path")
-
-    return str(resolved)
+    for pattern in INJECTION_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            return match
+    return None
 
 
-def sanitize_url(url: str) -> str:
+def contains_control_chars(text: str) -> bool:
+    """Check if text contains forbidden control characters."""
+    return bool(CONTROL_CHARS.search(text))
+
+
+def contains_internal_paths(text: str) -> bool:
+    """Check if text references internal system paths."""
+    return bool(INTERNAL_PATHS.search(text))
+
+
+def strip_unicode_overlong(text: str) -> str:
     """
-    Sanitize a URL.
-
-    - Only HTTP/HTTPS allowed
-    - No credentials in URL
-    - No dangerous schemes
-    - No internal network access
+    Reject or normalize overlong UTF-8 representations.
+    These can be used to bypass pattern matching.
     """
-    if not url:
-        raise SanitizationError("empty URL", "url")
-    if len(url) > MAX_URL_LEN:
-        raise SanitizationError(f"exceeds {MAX_URL_LEN} chars", "url")
-
-    # Check for null byte and path traversal in raw URL
-    if "\x00" in url:
-        raise SanitizationError("null byte in URL", "url")
-
-    try:
-        parsed = urllib.parse.urlparse(url)
-    except Exception as e:
-        raise SanitizationError(f"invalid URL: {e}", "url")
-
-    scheme = parsed.scheme.lower()
-    if scheme not in ("http", "https"):
-        raise SanitizationError(f"disallowed scheme: {scheme}", "url")
-
-    if parsed.username or parsed.password:
-        raise SanitizationError("credentials in URL", "url")
-
-    # Block localhost and internal networks
-    hostname = parsed.hostname or ""
-    blocked = (
-        hostname in ("localhost", "127.0.0.1", "::1")
-        or hostname.startswith("10.")
-        or hostname.startswith("172.16.")
-        or hostname.startswith("192.168.")
-        or hostname.startswith("169.254.")
-        or hostname.endswith(".internal")
-        or hostname.endswith(".local")
-    )
-    if blocked:
-        raise SanitizationError("internal network access blocked", "url")
-
-    # Reject URLs with newlines or control chars
-    if any(ord(c) < 0x20 for c in url):
-        raise SanitizationError("control characters in URL", "url")
-
-    # Check path for traversal and dangerous patterns (but not injection markers in paths)
-    path = parsed.path or ""
-    if ".." in path:
-        raise SanitizationError("path traversal in URL", "url")
-    # Check for URL-encoded newlines - reject if found
-    if re.search(r"%0a|%0d", url, re.IGNORECASE):
-        raise SanitizationError("newline injection in URL", "url")
-
-    # Ensure URL path is safe (basic chars only)
-    if path and not RE_URL_PATH.match(path):
-        raise SanitizationError("unsafe URL path characters", "url")
-
-    return url
+    # Normalize to NFC form
+    normalized = unicodedata.normalize("NFC", text)
+    # Check for null bytes (even in composed form)
+    if "\x00" in normalized:
+        raise ControlCharacterError("Null byte detected")
+    return normalized
 
 
-def sanitize_cmd_arg(arg: str) -> str:
+class InputSanitizer:
     """
-    Sanitize a single command-line argument.
+    Multi-layer input sanitizer for prompt injection defense.
 
-    - No shell metacharacters
-    - No environment variable expansion
-    - Length limit
+    Layer 1: Fast rejection of obviously malicious patterns
+    Layer 2: Context-aware cleaning with warnings
+    Layer 3: Path and internal reference validation
     """
-    if not arg:
-        return ""
-    if len(arg) > MAX_CMD_ARGS_LEN:
-        raise SanitizationError(f"exceeds {MAX_CMD_ARGS_LEN} chars", "arg")
 
-    for pattern, name in DANGEROUS_PATTERNS:
-        if pattern.search(arg):
-            raise SanitizationError(f"dangerous pattern: {name}", "arg")
+    def __init__(
+        self,
+        max_length: int = MAX_INPUT_LENGTH,
+        reject_injection: bool = True,
+        reject_control_chars: bool = True,
+    ):
+        self.max_length = max_length
+        self.reject_injection = reject_injection
+        self.reject_control_chars = reject_control_chars
 
-    # Check for shell metacharacters
-    if not RE_CMD_ARG.match(arg):
-        raise SanitizationError("disallowed characters in command arg", "arg")
+    def sanitize(self, raw_input: str) -> SanitizeResult:
+        """
+        Sanitize user input.
 
-    # Explicitly block common injection patterns
-    if "${" in arg or "$(" in arg:
-        raise SanitizationError("variable expansion in arg", "arg")
+        Args:
+            raw_input: The raw user input string.
 
-    return arg
+        Returns:
+            SanitizeResult with status, cleaned input, and any warnings.
+        """
+        warnings: list[str] = []
 
+        # --- Pre-checks ---
 
-def sanitize_cmd_args(args: list[str]) -> list[str]:
-    """Sanitize a list of command arguments."""
-    return [sanitize_cmd_arg(a) for a in args]
+        if not isinstance(raw_input, str):
+            raw_input = str(raw_input)
 
-
-def sanitize_content(content: str, max_len: int = MAX_CONTENT_LEN) -> str:
-    """Sanitize arbitrary text content with length limit."""
-    if len(content) > max_len:
-        raise SanitizationError(f"exceeds {max_len} chars", "content")
-
-    # Remove null bytes
-    content = content.replace("\x00", "")
-
-    # Detect overlong UTF-8 or obvious injection markers
-    try:
-        content.encode("utf-8")
-    except UnicodeEncodeError:
-        raise SanitizationError("invalid UTF-8 encoding", "content")
-
-    return content
-
-
-def sanitize_tool_args(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
-    """
-    Validate and sanitize tool arguments against their schema.
-
-    Raises SanitizationError if validation fails.
-    """
-    schema = TOOL_ARG_SCHEMAS.get(tool_name, {})
-
-    if not schema:
-        # Unknown tool — accept args as-is but apply generic sanitization
-        return {k: sanitize_content(str(v)) for k, v in args.items()}
-
-    sanitized = {}
-    for field, value in args.items():
-        if field not in schema:
-            continue  # Ignore unknown fields
-
-        field_schema = schema[field]
-        ftype = field_schema["type"]
-
+        # Normalize unicode
         try:
-            if ftype == "path":
-                sanitized[field] = sanitize_path(str(value))
-            elif ftype == "url":
-                sanitized[field] = sanitize_url(str(value))
-            elif ftype == "cmd":
-                sanitized[field] = sanitize_cmd_arg(str(value))
-            elif ftype == "cmd_args_list":
-                if isinstance(value, list):
-                    sanitized[field] = sanitize_cmd_args([str(a) for a in value])
-                else:
-                    sanitized[field] = [sanitize_cmd_arg(str(value))]
-            elif ftype == "content":
-                sanitized[field] = sanitize_content(str(value), field_schema.get("max_len", MAX_CONTENT_LEN))
-            elif ftype == "enum":
-                if value not in field_schema["values"]:
-                    raise SanitizationError(f"invalid enum value: {value}", field)
-                sanitized[field] = value
-        except SanitizationError:
-            raise
-        except Exception as e:
-            raise SanitizationError(f"{ftype} validation failed: {e}", field)
+            raw_input = strip_unicode_overlong(raw_input)
+        except ControlCharacterError:
+            if self.reject_control_chars:
+                raise
 
-    return sanitized
+        # Length check
+        if len(raw_input) > self.max_length:
+            if self.reject_control_chars:
+                raise InputTooLongError(
+                    f"Input too long: {len(raw_input)} > {self.max_length}"
+                )
+            warnings.append(f"Input truncated from {len(raw_input)} to {self.max_length}")
+            raw_input = raw_input[: self.max_length]
+
+        # Control character check
+        if contains_control_chars(raw_input):
+            if self.reject_control_chars:
+                raise ControlCharacterError(
+                    "Input contains forbidden control characters"
+                )
+            warnings.append("Control characters removed")
+            raw_input = CONTROL_CHARS.sub("", raw_input)
+
+        # Injection pattern check
+        injection_match = detect_injection(raw_input)
+        if injection_match:
+            if self.reject_injection:
+                raise InjectionDetectedError(
+                    f"Prompt injection pattern detected: '{injection_match.group()}'"
+                )
+            warnings.append("Potential injection pattern escaped")
+            # Escape rather than remove — preserves user intent for false positives
+            raw_input = self._escape_injection_delimiters(raw_input, injection_match)
+
+        # Internal path check
+        if contains_internal_paths(raw_input):
+            raise PathTraversalError(
+                "Input references internal system paths"
+            )
+
+        return SanitizeResult(
+            status=ValidationResult.VALID,
+            cleaned_input=raw_input,
+            warnings=warnings,
+        )
+
+    def _escape_injection_delimiters(
+        self, text: str, injection_match: re.Match
+    ) -> str:
+        """
+        Escape injection delimiters by adding zero-width space.
+        Preserves the text but breaks pattern matching.
+        """
+        escaped = text
+        # Add zero-width space after suspected delimiter to break pattern
+        for pattern in INJECTION_PATTERNS:
+            escaped = pattern.sub(lambda m: m.group() + "\u200b", escaped)
+        return escaped
+
+    def validate_output(self, output: str) -> str:
+        """
+        Validate and redact AI output.
+
+        Removes references to internal paths and secret patterns.
+        """
+        redacted = output
+
+        # Remove internal path references
+        redacted = INTERNAL_PATHS.sub("[internal path redacted]", redacted)
+
+        # Remove potential secret patterns (base64-looking strings that are 40+ chars)
+        redacted = re.sub(
+            r"[A-Za-z0-9+/]{40,}={0,2}",
+            lambda m: "[value redacted]" if len(m.group()) >= 40 else m.group(),
+            redacted,
+        )
+
+        return redacted
 
 
-def sanitize_tool_name(name: str) -> str:
-    """Validate that a tool name is a registered identifier."""
-    if not re.match(r"^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)*$", name):
-        raise SanitizationError("invalid tool name format", "tool_name")
-    return name
+# Global instance
+_default_sanitizer: Optional[InputSanitizer] = None
 
 
-def sanitize_prompt(text: str, max_len: int = 128_000) -> str:
-    """
-    Sanitize user prompt before it enters the AI context.
+def get_sanitizer() -> InputSanitizer:
+    """Get the default sanitizer instance."""
+    global _default_sanitizer
+    if _default_sanitizer is None:
+        _default_sanitizer = InputSanitizer()
+    return _default_sanitizer
 
-    This is a last-resort sanitization layer that removes the most
-    dangerous injection patterns while preserving legitimate input.
-    """
-    if len(text) > max_len:
-        raise SanitizationError(f"exceeds {max_len} chars", "prompt")
 
-    # Remove obvious injection markers in one pass
-    # - {{ and }} as separate tokens
-    # - <% and %> as separate tokens  
-    # - HTML comments <!-- -->
-    # - $$ (double dollar normalized to single)
-    injection_pattern = re.compile(r"\{\{|}}\s*|<%|%>|<!--|-->|\$\$")
-    result = injection_pattern.sub("", text)
-
-    return result
+def sanitize(raw_input: str) -> SanitizeResult:
+    """Convenience function to sanitize input using default sanitizer."""
+    return get_sanitizer().sanitize(raw_input)
