@@ -46,6 +46,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
 
+        // "ai hello" works directly from shell mode — no need to enter AI mode first
+        if !ai_mode && trimmed.starts_with("ai ") {
+            handle_ai_input(trimmed);
+            continue;
+        }
+
         if ai_mode {
             handle_ai_input(trimmed);
         } else {
@@ -86,6 +92,13 @@ fn handle_shell_input(input: &str, registry: &tools::ToolRegistry) {
 }
 
 fn handle_ai_input(input: &str) {
+    // Strip "ai " prefix if present so we only send the actual query
+    let query = input.strip_prefix("ai ").map(str::trim).unwrap_or(input);
+    if query.is_empty() {
+        println!("Usage: ai <your message>");
+        return;
+    }
+
     let socket_path = "/tmp/bantu.sock";
     let mut sock = match std::os::unix::net::UnixStream::connect(socket_path) {
         Ok(s) => s,
@@ -95,7 +108,7 @@ fn handle_ai_input(input: &str) {
         }
     };
 
-    let request = serde_json::json!({"cmd": "ai", "text": input});
+    let request = serde_json::json!({"cmd": "ai", "text": query});
     let msg = serde_json::to_string(&request).unwrap();
     use std::io::{Read, Write};
     if let Err(e) = sock.write_all(msg.as_bytes()) {
