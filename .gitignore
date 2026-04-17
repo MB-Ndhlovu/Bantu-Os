@@ -25,3 +25,4 @@ target/
 *.o
 *.pyc
 __pycache__/
+init/init

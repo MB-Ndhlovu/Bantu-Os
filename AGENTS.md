@@ -41,7 +41,12 @@ BASE:    Linux Kernel
 
 ## What to Build Next (Priority Order)
 
-1. Shell-to-kernel socket connection (Rust shell → Python kernel over Unix socket)
+1. ~~Shell-to-kernel socket connection (Rust shell → Python kernel over Unix socket)~~ ✅ DONE
+   - `bantu_os/core/socket_server.py` — dual Unix socket (`/tmp/bantu.sock`) + TCP (`127.0.0.1:18792`)
+   - `tests/kernel/test_socket_server.py` — 18 integration tests passing
+   - Tool protocol: `{"cmd": "tool", "tool": "file|process|network", "method": "method_name", "args": {...}}`
+   - AI protocol unchanged: `{"cmd": "ai", "text": "..."}`
+   - Remaining: end-to-end test with real Rust shell binary + kernel boot via `start.sh`
 2. AI-native shell UX (polish REPL, history, tab completion)
 3. C init integration (service registry wiring into the C init system)
 4. Phase 2: Connectivity (messaging, fintech APIs, crypto wallet)

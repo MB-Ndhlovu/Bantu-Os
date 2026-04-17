@@ -1,191 +1,226 @@
 # Contributing to Bantu-OS
 
-Welcome. We're building something real — a Linux-based, AI-native operating system from Africa, for the world. This guide will get you set up and productive fast.
-
-> ⚡ **First time contributing?** Pick up an issue labeled `good first issue` or `help wanted`. If anything is unclear, open an issue. We're a small team and we want contributors, not confused contributors.
+Thank you for your interest in contributing to Bantu-OS. This guide covers everything you need to set up your development environment, run tests, and submit changes.
 
 ---
 
-## 🏗️ Development Setup
+## Development Setup
 
 ### Prerequisites
 
-- Linux (Debian/Ubuntu) — Bantu-OS is built on Linux
+- Linux (Debian/Ubuntu-based recommended)
 - Python 3.10+
-- Rust 1.70+ (for the shell layer)
+- Rust 1.70+
 - GCC
 - Git
+- `pip` or `poetry`
 
-### 1. Fork & Clone
+### 1. Clone the Repository
 
 ```bash
-# Fork on GitHub, then clone YOUR fork
-git clone https://github.com/YOUR_USERNAME/Bantu-Os.git
+git clone https://github.com/MB-Ndhlovu/Bantu-Os.git
 cd Bantu-Os
 ```
 
-### 2. Add Upstream
+### 2. Set Up Python Environment
 
 ```bash
-git remote add upstream https://github.com/MB-Ndhlovu/Bantu-Os.git
-```
-
-### 3. Install Python Dependencies
-
-```bash
+# Using pip
+python3 -m venv venv
+source venv/bin/activate
 pip install -e .
-# or with poetry:
+
+# Or using poetry
 poetry install
+poetry shell
 ```
 
-### 4. Build Each Layer
+### 3. Set Up Rust Environment
 
 ```bash
-# Layer 1 — C Init System
+# Install Rust if not present
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+
+# Verify
+rustc --version
+cargo --version
+```
+
+### 4. Build All Layers
+
+```bash
+# Python package
+pip install -e .
+
+# C init system
 cd init && make
 
-# Layer 2 — Rust Shell
+# Rust shell
 cd ../shell && cargo build --release
-
-# Back to root
-cd ..
 ```
 
-### 5. Run Tests
+### 5. Run the Dev Setup Script
 
 ```bash
-# Python tests
-python -m pytest tests/ -v
-
-# C init compilation test
-cd init && make test
+bash scripts/dev-setup.sh
 ```
 
 ---
 
-## 🔧 Coding Standards
+## Running Tests
+
+### All Tests
+
+```bash
+make test
+```
+
+### Python Tests Only
+
+```bash
+python -m pytest tests/ -v
+```
+
+### Rust Tests Only
+
+```bash
+cd shell && cargo test
+```
+
+### C Init Tests
+
+```bash
+cd init && make test
+```
+
+### Watch Mode (Python)
+
+```bash
+pip install pytest-watch
+pytest-watch tests/ -v
+```
+
+---
+
+## Project Layout
+
+```
+bantu_os/
+├── init/           # C init system (Layer 1)
+├── shell/          # Rust shell (Layer 2)
+├── bantu_os/       # Python AI engine + services (Layers 3 & 4)
+├── tests/          # Python test suite
+└── docs/           # Architecture docs
+```
+
+---
+
+## Code Standards
 
 ### Python
 
 - Follow PEP 8
-- Use type hints on all function signatures
-- Every new module needs a docstring
-- Tests must pass before merging: `python -m pytest tests/ -v`
-
-### C
-
-- Follow C11 standard
-- Use `-Wall -Wextra -pedantic` without warnings
-- All functions must be documented
-- Signal-safe code only in signal handlers
+- Use type hints where possible
+- All public APIs must have docstrings
+- Run `python -m pytest tests/ -v` before committing
 
 ### Rust
 
-- Follow `rustfmt` (run `cargo fmt` before committing)
-- No `unsafe` blocks without a comment explaining why
-- All public API items need doc comments
+- Follow `rustfmt` style
+- Include doc comments on public items
+- All tests must pass: `cargo test`
 
-### Commit Messages
+### C
 
-We follow [Conventional Commits](https://www.conventionalcommits.org/):
+- Comment complex logic
+- Include a `Makefile` for each component
+- Verify compilation on clean build
 
-```
-<type>(<scope>): <description>
+---
 
-[optional body]
+## Commit Convention
 
-[optional footer]
-```
+Format: `<type>(<scope>): <description>`
 
-**Types:** `feat` | `fix` | `docs` | `test` | `refactor` | `chore`
+| Type | When to Use |
+|------|-------------|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `docs` | Documentation only |
+| `test` | Adding or updating tests |
+| `refactor` | Code restructure (no behavior change) |
+| `chore` | Maintenance, deps, CI |
 
 **Examples:**
 ```
-feat(init): add service restart command
-fix(scheduler): correct timezone handling in parse_natural_time
-docs(readme): add architecture diagram
-test(llm_manager): add provider switching test
+feat(kernel): add socket reconnection logic
+fix(scheduler): correct HHMM time regex
+docs(init): add signal handling section
+test(shell): add integration test for tool dispatch
 ```
 
 ---
 
-## 🔄 Development Workflow
+## Submitting Changes
 
-### Always Work on a Feature Branch
+### 1. Branch
 
 ```bash
-# Fetch latest from upstream
 git fetch upstream
-
-# Start from a clean main
-git checkout main
-git pull upstream main
-
-# Create a descriptive feature branch
+git checkout main && git pull upstream main
 git checkout -b feat/your-feature-name
 ```
 
-### Make Your Changes
+### 2. Make Changes
 
-1. Write code following the standards above
-2. Add tests for your feature or fix
-3. Run the full test suite: `python -m pytest tests/ -v`
-4. Update docs if needed
+- Write code
+- Write tests
+- Update docs if needed
 
-### Submit a Pull Request
+### 3. Verify Tests Pass
 
 ```bash
-# Push your branch
+python -m pytest tests/ -v
+cd shell && cargo test
+```
+
+### 4. Commit
+
+```bash
+git add .
+git commit -m "feat(scope): description"
+```
+
+### 5. Push & Open PR
+
+```bash
 git push origin feat/your-feature-name
 ```
 
-Then open a Pull Request on GitHub.
-
-**PRs are required to:**
-- Pass all CI checks
-- Have a clear description of what changed and why
-- Reference any related issues
-
-### What to Work On
-
-Check the [open issues](https://github.com/MB-Ndhlovu/Bantu-Os/issues) for priorities. The current focus is:
-
-| Layer | Priority | What to Build |
-|-------|----------|---------------|
-| Layer 1 (C) | High | Process supervision, rc scripts |
-| Layer 2 (Rust) | High | Complete tool dispatch, command parser |
-| Layer 3 (Python) | High | LLM provider abstraction, kernel tests |
-| Layer 4 (Python) | Medium | Service APIs: file, process, network |
-| Memory | Medium | ChromaDB integration, embeddings |
-| CI/CD | Medium | Add cargo test to CI |
-| Docs | Ongoing | Architecture docs, API docs |
+Then open a Pull Request on GitHub with:
+- Clear description of the change
+- Link to any relevant issue
+- Confirmation that tests pass
 
 ---
 
-## 📐 Architecture Context
+## What to Build Next
 
-Bantu-OS is a layered system. Before writing code, read the relevant spec:
+See [AGENTS.md](./AGENTS.md) for the current priority list:
 
-- [SPEC.md](docs/SPEC.md) — Full architecture specification
-- [KERNEL.md](docs/KERNEL.md) — Kernel design
-- [SECURITY.md](docs/SECURITY.md) — Security model
-
-Each layer has a clear owner (see AGENTS.md). If you're unsure which layer your change belongs in, ask in an issue.
+1. AI-native shell UX (polish REPL, history, tab completion)
+2. C init integration (service registry wiring)
+3. Phase 2: Connectivity (messaging, fintech APIs, crypto wallet)
 
 ---
 
-## ❓ Getting Help
+## Getting Help
 
-- **Issues:** Open one on GitHub — we respond within 24 hours
-- **Email:** malibongwendhlovu05@gmail.com
-- **GitHub Discussions:** Use the Discussions tab
-
----
-
-## 🌍 Code of Conduct
-
-This project follows our [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you agree to uphold a welcoming, respectful community.
+- Open an [issue](https://github.com/MB-Ndhlovu/Bantu-Os/issues)
+- Read the [SPEC.md](./SPEC.md) for architecture context
+- Check existing PRs for patterns
 
 ---
 
-*Built in Africa. Open to the world. Let's build the future together.*
+*Last updated: 2026-04-17*
