@@ -9,15 +9,24 @@ Public methods:
 - process_input(text, system_prompt=None, context=None, **gen_kwargs)
 - generate_response(messages, **gen_kwargs)
 - use_tool(name, **kwargs)
+- agentic_loop(text, ...) — full agentic loop with tool call detection
 """
 from __future__ import annotations
 
+import json
+import re
 from typing import Any, Dict, List, Optional, Callable
 
 from .llm_manager import LLMManager
 from .providers.base import ChatMessage, GenerateResult
 from ...config import settings
 from ...memory import Memory, EmbeddingsProvider, OpenAIEmbeddingsProvider
+
+# Compiled once at module load — matches [TOOL_CALL] name args:{...} [/TOOL_CALL]
+_TOOL_CALL_RE = re.compile(
+    r'\[TOOL_CALL\]\s*(\w+)\s+args:(\{[^}]*\})\s*\[/TOOL_CALL\]',
+    re.DOTALL,
+)
 
 
 class Kernel:
@@ -211,3 +220,80 @@ class Kernel:
             except Exception as exc:
                 outcomes.append({"name": name, "error": str(exc)})
         return outcomes
+
+    @staticmethod
+    def _parse_tool_calls(text: str) -> List[Dict[str, Any]]:
+        """Extract tool calls from LLM output text.
+
+        Supports format: [TOOL_CALL] name args:{...} [/TOOL_CALL]
+        The regex uses DOTALL so {...} can contain newlines.
+
+        Returns list of dicts with keys: name (str), args (dict).
+        """
+        calls = []
+        for m in _TOOL_CALL_RE.finditer(text):
+            name = m.group(1)
+            try:
+                args = json.loads(m.group(2))
+            except Exception:
+                args = {}
+            calls.append({"name": name, "args": args})
+        return calls
+
+    async def agentic_loop(
+        self,
+        text: str,
+        system_prompt: Optional[str] = None,
+        max_iterations: int = 5,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+    ) -> str:
+        """Agentic loop: generate -> detect tool calls -> execute -> re-prompt.
+
+        Keeps running until the LLM produces no more tool calls or max_iterations
+        is reached. Tool results are injected back into the LLM context so it can
+        reason about them and produce a final text response.
+
+        Args:
+            text: user input
+            system_prompt: optional system-level instruction
+            max_iterations: max tool-call rounds (default 5)
+            temperature: generation temperature
+            max_tokens: max generation tokens
+
+        Returns:
+            Final text response after all tool calls are resolved.
+        """
+        messages: List[ChatMessage] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+
+        messages.append({"role": "user", "content": text})
+
+        for _ in range(max_iterations):
+            result = await self.llm.generate(
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            output_text = result.get("text", "")
+
+            calls = self._parse_tool_calls(output_text)
+            if not calls:
+                # No tool calls — return the text response
+                return output_text
+
+            # Execute tool calls and inject results into context
+            outcomes = await self.run_tool_calls(calls)
+            tool_results_text = "\n".join(
+                f"Tool: {o['name']} | Result: {o.get('result', o.get('error', 'unknown'))}"
+                for o in outcomes
+            )
+            messages.append({"role": "assistant", "content": output_text})
+            messages.append({
+                "role": "system",
+                "content": f"Tool results:\n{tool_results_text}"
+            })
+
+        # Max iterations reached — return last output
+        return output_text
