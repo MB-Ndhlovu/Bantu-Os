@@ -29,6 +29,7 @@ from typing import Any, Optional
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from bantu_os.core.kernel import Kernel
+from bantu_os.core.init_bridge import InitBridge
 from bantu_os.services.file_service import FileService
 from bantu_os.services.process_service import ProcessService
 from bantu_os.services.network_service import NetworkService
@@ -174,6 +175,7 @@ class SocketServer:
         unix_path:  path for the Unix domain socket (default /tmp/bantu.sock)
         tcp_host:   host to bind TCP server on (default 127.0.0.1)
         tcp_port:   port for TCP server (default 18792, 0xBANTU in hex)
+        service_name: name to register with C init (default "ai-engine")
     """
 
     def __init__(
@@ -181,15 +183,18 @@ class SocketServer:
         unix_path: str = "/tmp/bantu.sock",
         tcp_host: str = "127.0.0.1",
         tcp_port: int = 18792,
+        service_name: str = "ai-engine",
     ) -> None:
         self.unix_path = unix_path
         self.tcp_host = tcp_host
         self.tcp_port = tcp_port
+        self.service_name = service_name
         self._kernel: Optional[Kernel] = None
         self._unix_server: Optional[asyncio.Server] = None
         self._tcp_server: Optional[asyncio.Server] = None
         self._shutdown_event = asyncio.Event()
         self._started_event = asyncio.Event()
+        self._init_bridge: Optional[InitBridge] = None
 
     async def _get_kernel(self) -> Kernel:
         if self._kernel is None:
