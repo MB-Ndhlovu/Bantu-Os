@@ -42,6 +42,16 @@ try:
 except ImportError:
     _PHASE2_AVAILABLE = False
 
+# Phase 3: IoT, Hardware
+try:
+    from bantu_os.services.iot import IoTService
+    from bantu_os.services.hardware import HardwareService
+    _IOT_AVAILABLE = True
+    _HARDWARE_AVAILABLE = True
+except ImportError:
+    _IOT_AVAILABLE = False
+    _HARDWARE_AVAILABLE = False
+
 
 def make_kernel() -> Kernel:
     """
@@ -60,9 +70,17 @@ def make_kernel() -> Kernel:
         kernel.register_tool("messaging", MessagingService)
         kernel.register_tool("fintech", FintechService)
         kernel.register_tool("crypto", CryptoWalletService)
-        print("[kernel] Phase 2 services registered: messaging, fintech, crypto", flush=True)
-    else:
-        print("[kernel] Phase 2 services not available (import failed)", flush=True)
+
+    # Phase 3: wire IoT and Hardware into the kernel
+    if _IOT_AVAILABLE:
+        kernel.register_tool("iot", IoTService)
+    if _HARDWARE_AVAILABLE:
+        kernel.register_tool("hardware", HardwareService)
+
+    print(f"[kernel] Phase 2 services registered: messaging, fintech, crypto" if _PHASE2_AVAILABLE else "[kernel] Phase 2: not available")
+    if _IOT_AVAILABLE or _HARDWARE_AVAILABLE:
+        registered = [_f for _f in [("iot" if _IOT_AVAILABLE else None), ("hardware" if _HARDWARE_AVAILABLE else None)] if _f]
+        print(f"[kernel] Phase 3 services registered: {', '.join(registered)}")
 
     return kernel
 
