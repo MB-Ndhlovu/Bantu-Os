@@ -147,9 +147,7 @@ class ShellProtocol(asyncio.Protocol):
             tool_name = request.get("tool", "")
             method_name = request.get("method", "")
             tool_args = request.get("args", {})
-            result = self._execute_tool(tool_name, method_name, tool_args)
-            if isinstance(result, asyncio.Task):
-                result = await result
+            result = await self._execute_tool(tool_name, method_name, tool_args)
             if result.get("ok") is True:
                 await self._send({"ok": True, "result": result.get("result")})
             else:
@@ -158,7 +156,7 @@ class ShellProtocol(asyncio.Protocol):
 
         await self._send({"ok": False, "error": f"Unknown cmd: {cmd}"})
 
-    def _execute_tool(
+    async def _execute_tool(
         self, tool_name: str, method_name: str, tool_args: dict
     ) -> dict:
         """
@@ -182,6 +180,10 @@ class ShellProtocol(asyncio.Protocol):
             instance = tool_class()
             method = getattr(instance, method_name)
             result = method(**tool_args)
+            # Async tool methods (async def) return coroutines — await them
+            import inspect
+            if inspect.iscoroutine(result):
+                result = await result
             # Serialize dict/list results as JSON strings for the shell consumer
             if isinstance(result, (dict, list)):
                 result = json.dumps(result)
@@ -209,22 +211,21 @@ class SocketServer:
 
     Args:
         unix_path:  path for the Unix domain socket (default /tmp/bantu.sock)
+                    Override with BANTU_SOCK_PATH env var.
         tcp_host:   host to bind TCP server on (default 127.0.0.1)
         tcp_port:   port for TCP server (default 18792, 0xBANTU in hex)
-        service_name: name to register with C init (default "ai-engine")
+                    Override with BANTU_TCP_PORT env var.
     """
 
     def __init__(
         self,
-        unix_path: str = "/tmp/bantu.sock",
+        unix_path: str | None = None,
         tcp_host: str = "127.0.0.1",
-        tcp_port: int = 18792,
-        service_name: str = "ai-engine",
+        tcp_port: int | None = None,
     ) -> None:
-        self.unix_path = unix_path
+        self.unix_path = unix_path or os.environ.get("BANTU_SOCK_PATH", "/tmp/bantu.sock")
         self.tcp_host = tcp_host
-        self.tcp_port = tcp_port
-        self.service_name = service_name
+        self.tcp_port = int(os.environ.get("BANTU_TCP_PORT", str(tcp_port or 18792)))
         self._kernel: Optional[Kernel] = None
         self._unix_server: Optional[asyncio.Server] = None
         self._tcp_server: Optional[asyncio.Server] = None
