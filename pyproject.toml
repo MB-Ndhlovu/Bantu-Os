@@ -2,7 +2,7 @@
 name = 'bantu-os'
 version = '0.1.0'
 description = 'Bantu OS: An AI-powered operating system'
-authors = ['Your Name <you@example.com>']
+authors = ["Malibongwe Ndhlovu <malibongwendhlovu05@gmail.com>"]
 readme = 'README.md'
 packages = [{ include = 'bantu_os' }]
 

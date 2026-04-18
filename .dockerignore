@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.github/
+*.egg-info/
+htmlcov/
+.coverage
+.pytest_cache/
+.ruff_cache/
+*.sqlite3
+bantu_os_data/
