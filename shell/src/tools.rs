@@ -18,6 +18,7 @@ pub enum ToolError {
     InvalidArgs(String),
 }
 
+#[derive(Debug, Clone)]
 pub struct ToolRegistry {
     tools: HashMap<String, Tool>,
 }
