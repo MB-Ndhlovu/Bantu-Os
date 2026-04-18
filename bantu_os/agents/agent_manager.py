@@ -75,9 +75,11 @@ class BaseAgent(ABC):
             if asyncio.iscoroutine(result):
                 result = await result
             tc.result = result
+            tc.finished_at = time.time()
             return result
         except Exception as e:
             tc.error = str(e)
+            tc.finished_at = time.time()
             raise
 
     @abstractmethod
@@ -119,7 +121,6 @@ class TaskAgent(BaseAgent):
         self.tasks[task_id] = {"description": description, "params": params, "status": "pending"}
 
     async def think(self, prompt: str) -> str:
-        # Simple task parsing - in production this would call an LLM
         lines = [l.strip() for l in prompt.split("\n") if l.strip()]
         return json.dumps({"tasks_created": len(lines), "tasks": lines})
 
@@ -141,7 +142,6 @@ class MemoryAgent(BaseAgent):
         self._store[id] = text
 
     async def think(self, prompt: str) -> str:
-        # Parse intent: retrieve vs store
         if prompt.lower().startswith("store:"):
             _, id, text = prompt.split(":", 2)
             self.store(id.strip(), text.strip())
@@ -154,19 +154,84 @@ class MemoryAgent(BaseAgent):
 
 
 class AgentManager:
-    """Central agent orchestrator."""
+    """Central agent orchestrator — routes prompts through kernel and executes tools."""
 
-    def __init__(self):
-        self.agents: dict[str, BaseAgent] = {}
+    def __init__(self, kernel=None, tools: dict[str, Callable] | None = None):
+        self.kernel = kernel
+        self._tools: dict[str, Callable] = tools.copy() if tools else {}
+        self._sub_agents: dict[str, BaseAgent] = {}
         self._mailbox: dict[str, list[AgentMessage]] = {}
 
+    # -------------------------------------------------------------------------
+    # Tool registry
+    # -------------------------------------------------------------------------
+    def register_tool(self, name: str, fn: Callable) -> None:
+        """Register a callable tool by name."""
+        self._tools[name] = fn
+
+    @property
+    def tools(self) -> dict[str, Callable]:
+        """Expose tools dict for backward-compatibility with tests."""
+        return self._tools
+
+    # -------------------------------------------------------------------------
+    # Tool execution helpers
+    # -------------------------------------------------------------------------
+    async def _execute_tool_call(self, tool_name: str, args: dict) -> str:
+        """Run a single registered tool and return its result as a string."""
+        if tool_name not in self._tools:
+            return f"Unknown tool: {tool_name}"
+        try:
+            result = self._tools[tool_name](**args)
+            if asyncio.iscoroutine(result):
+                result = await result
+            return str(result)
+        except TypeError as e:
+            return f"Tool '{tool_name}' argument error: {e}"
+        except Exception as e:
+            return f"Tool '{tool_name}' failed: {e}"
+
+    async def _parse_and_dispatch(self, text: str) -> str:
+        """Ask the kernel to decide what to do, then execute the tool."""
+        if self.kernel is None:
+            return "AgentManager has no kernel — cannot process input"
+
+        raw = await self.kernel.process_input(text)
+
+        # Try JSON action dispatch
+        try:
+            parsed = json.loads(raw)
+            action = parsed.get("action", "")
+            args = parsed.get("args", {})
+        except (json.JSONDecodeError, TypeError):
+            # Not JSON — treat raw text as direct response
+            return raw
+
+        if action == "respond":
+            return args.get("message", raw)
+        if action in self._tools:
+            return await self._execute_tool_call(action, args)
+        return f"Unknown tool: {action}"
+
+    # -------------------------------------------------------------------------
+    # Public API
+    # -------------------------------------------------------------------------
+    async def execute(self, prompt: str) -> str:
+        """
+        Process a prompt: kernel decides, tool gets executed.
+        Returns the tool result or kernel response as a string.
+        """
+        return await self._parse_and_dispatch(prompt)
+
     def register(self, agent: BaseAgent) -> None:
-        self.agents[agent.name] = agent
+        """Register a sub-agent for dispatch-based routing."""
+        self._sub_agents[agent.name] = agent
 
     async def dispatch(self, agent_name: str, prompt: str) -> AgentResult:
-        if agent_name not in self.agents:
+        """Dispatch to a named sub-agent."""
+        if agent_name not in self._sub_agents:
             raise ValueError(f"Unknown agent: {agent_name}")
-        return await self.agents[agent_name].run(prompt)
+        return await self._sub_agents[agent_name].run(prompt)
 
     def send_message(self, from_agent: str, to_agent: str, msg_type: str, payload: dict) -> None:
         msg = AgentMessage(
@@ -184,4 +249,9 @@ class AgentManager:
         return msgs
 
     def list_agents(self) -> list[str]:
-        return list(self.agents.keys())
+        return list(self._sub_agents.keys())
+
+    # -------------------------------------------------------------------------
+    # Mailbox (used by send_message / get_messages)
+    # -------------------------------------------------------------------------
+    _mailbox: dict[str, list[AgentMessage]] = {}

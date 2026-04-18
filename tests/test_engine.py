@@ -6,7 +6,7 @@ import tempfile
 import pytest
 
 from bantu_os.ai.engine import AIEngine, BUILTIN_HANDLERS
-from bantu_os.ai.tools.schema import Tool, ToolParam
+from bantu_os.ai.tools.schema import BUILTIN_TOOLS, Tool, ToolParam
 
 
 class FakeProvider:

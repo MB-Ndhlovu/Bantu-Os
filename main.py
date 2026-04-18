@@ -40,8 +40,8 @@ async def build_app() -> tuple[Kernel, AgentManager, Optional[Memory]]:
 
     # Kernel with memory attached (if any)
     kernel = Kernel(
-        provider="openai",
-        provider_model=None,  # fall back to settings.DEFAULT_LLM_MODEL
+        provider="openrouter",
+        provider_model=None,  # falls back to settings.DEFAULT_LLM_MODEL
         memory=memory,
         memory_top_k=3,
     )

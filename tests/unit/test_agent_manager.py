@@ -1,8 +1,8 @@
 """
 Tests for agents/agent_manager.py — AgentManager, BaseAgent, and agents.
 """
-import pytest
 import asyncio
+import pytest
 
 
 class TestAgentToolRegistry:
@@ -14,31 +14,28 @@ class TestAgentToolRegistry:
         agent.register_tool("add", lambda a, b: a + b)
         assert "add" in agent._tool_registry
 
-    def test_call_tool(self):
+    @pytest.mark.asyncio
+    async def test_call_tool(self):
         from bantu_os.agents.agent_manager import ShellAgent
         agent = ShellAgent()
         agent.register_tool("add", lambda a, b: a + b)
-        result = asyncio.get_event_loop().run_until_complete(
-            agent.call_tool("add", {"a": 2, "b": 3})
-        )
+        result = await agent.call_tool("add", {"a": 2, "b": 3})
         assert result == 5
 
-    def test_call_tool_unknown_raises(self):
+    @pytest.mark.asyncio
+    async def test_call_tool_unknown_raises(self):
         from bantu_os.agents.agent_manager import ShellAgent
         agent = ShellAgent()
         with pytest.raises(ValueError, match="Unknown tool"):
-            asyncio.get_event_loop().run_until_complete(
-                agent.call_tool("unknown", {})
-            )
+            await agent.call_tool("unknown", {})
 
 
 class TestShellAgent:
-    def test_shell_agent_runs_command(self):
+    @pytest.mark.asyncio
+    async def test_shell_agent_runs_command(self):
         from bantu_os.agents.agent_manager import ShellAgent
         agent = ShellAgent()
-        result = asyncio.get_event_loop().run_until_complete(
-            agent.run("echo hello")
-        )
+        result = await agent.run("echo hello")
         assert result.success is True
         assert "hello" in result.output
 
@@ -67,13 +64,12 @@ class TestAgentManager:
         mgr.register(ShellAgent())
         assert "shell" in mgr.list_agents()
 
-    def test_dispatch_unknown_agent_raises(self):
+    @pytest.mark.asyncio
+    async def test_dispatch_unknown_agent_raises(self):
         from bantu_os.agents.agent_manager import AgentManager
         mgr = AgentManager()
         with pytest.raises(ValueError, match="Unknown agent"):
-            asyncio.get_event_loop().run_until_complete(
-                mgr.dispatch("ghost", "hello")
-            )
+            await mgr.dispatch("ghost", "hello")
 
     def test_send_and_get_messages(self):
         from bantu_os.agents.agent_manager import AgentManager, ShellAgent
@@ -84,12 +80,11 @@ class TestAgentManager:
         assert len(msgs) == 1
         assert msgs[0].type == "ping"
 
-    def test_dispatch_shell_agent(self):
+    @pytest.mark.asyncio
+    async def test_dispatch_shell_agent(self):
         from bantu_os.agents.agent_manager import AgentManager, ShellAgent
         mgr = AgentManager()
         mgr.register(ShellAgent())
-        result = asyncio.get_event_loop().run_until_complete(
-            mgr.dispatch("shell", "echo world")
-        )
+        result = await mgr.dispatch("shell", "echo world")
         assert result.success is True
         assert "world" in result.output
