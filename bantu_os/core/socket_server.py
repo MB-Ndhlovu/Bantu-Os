@@ -29,10 +29,18 @@ from typing import Any, Optional
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from bantu_os.core.kernel import Kernel
-from bantu_os.core.init_bridge import InitBridge
 from bantu_os.services.file_service import FileService
 from bantu_os.services.process_service import ProcessService
 from bantu_os.services.network_service import NetworkService
+
+# Phase 2: Messaging, Fintech, Crypto
+try:
+    from bantu_os.services.messaging import MessagingService
+    from bantu_os.services.fintech import FintechService
+    from bantu_os.services.crypto import CryptoWalletService
+    _PHASE2_AVAILABLE = True
+except ImportError:
+    _PHASE2_AVAILABLE = False
 
 
 def make_kernel() -> Kernel:
@@ -46,6 +54,16 @@ def make_kernel() -> Kernel:
     kernel.register_tool("file", FileService)
     kernel.register_tool("process", ProcessService)
     kernel.register_tool("network", NetworkService)
+
+    # Phase 2: wire messaging, fintech, crypto into the kernel
+    if _PHASE2_AVAILABLE:
+        kernel.register_tool("messaging", MessagingService)
+        kernel.register_tool("fintech", FintechService)
+        kernel.register_tool("crypto", CryptoWalletService)
+        print("[kernel] Phase 2 services registered: messaging, fintech, crypto", flush=True)
+    else:
+        print("[kernel] Phase 2 services not available (import failed)", flush=True)
+
     return kernel
 
 
@@ -194,7 +212,6 @@ class SocketServer:
         self._tcp_server: Optional[asyncio.Server] = None
         self._shutdown_event = asyncio.Event()
         self._started_event = asyncio.Event()
-        self._init_bridge: Optional[InitBridge] = None
 
     async def _get_kernel(self) -> Kernel:
         if self._kernel is None:

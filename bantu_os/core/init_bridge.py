@@ -20,6 +20,10 @@ import time
 from pathlib import Path
 from typing import Optional
 
+# Wire Phase 2 services into the kernel
+from bantu_os.core.socket_server import make_kernel
+from bantu_os.core.kernel import Kernel
+
 SOCKET_PATH = "/run/bantu/init.sock"
 
 
