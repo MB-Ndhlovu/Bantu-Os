@@ -9,7 +9,7 @@ The Bantu-OS shell (Layer 2) replaces bash as the primary interface. It provides
 ```
 ┌─────────────────────────────────────┐
 │           User Input                │
-│    "list files in /home"            │
+│    "list files in /home"           │
 └──────────────┬──────────────────────┘
                ▼
 ┌─────────────────────────────────────┐
@@ -19,68 +19,49 @@ The Bantu-OS shell (Layer 2) replaces bash as the primary interface. It provides
                ▼
 ┌─────────────────────────────────────┐
 │         Parser (parser.rs)          │
-│   Natural language → ToolCall       │
+│   Natural language → ToolCall      │
 └──────────────┬──────────────────────┘
                ▼
 ┌─────────────────────────────────────┐
 │      Tool Registry (tools.rs)      │
-│   ToolCall → System Command         │
+│   ToolCall → System Command        │
 └──────────────┬──────────────────────┘
                ▼
 ┌─────────────────────────────────────┐
 │        Python AI Engine             │
-│      (IPC: Unix socket / stdio)     │
+│      (IPC: Unix socket / TCP)      │
 └─────────────────────────────────────┘
 ```
 
 ## Components
 
 ### main.rs
-- REPL loop using `rustyline` for line editing
+
+- REPL loop (stdin/stdout, no external line editor dependency)
 - Signal handling (Ctrl+C graceful exit)
-- History support (`/tmp/bantu_shell_history`)
-- Input → `process_input()` → output flow
+- Dual mode: shell commands and AI mode (`ai <message>`)
+- Input → `handle_shell_input()` or `handle_ai_input()` → output flow
 
 ### parser.rs
+
 Converts natural language to structured `ToolCall`:
+
 ```rust
 pub struct ToolCall {
-    pub tool: String,    // e.g., "ls", "cat", "ps"
+    pub tool: String,     // e.g., "ls", "cat", "ps"
     pub args: Vec<String>,
-    pub raw: String,    // original input
+    pub raw: String,      // original input
 }
 ```
 
-**Natural language mappings:**
-- `list`/`ls`/`show` → `ls`
-- `read`/`cat`/`view` → `cat`
-- `status`/`ps` → `ps`
-- `find`/`search`/`grep` → `grep`
-- etc.
-
 ### tools.rs
-`ToolRegistry` manages available system tools:
 
-| Tool | Description | Args |
-|------|-------------|------|
-| `ls` | List directory | `[path]` |
-| `cat` | Display file | `file` |
-| `ps` | Processes | - |
-| `pwd` | Working dir | - |
-| `whoami` | Current user | - |
-| `cd` | Change dir | `path` |
-| `mkdir` | Create dir | `path` |
-| `rm` | Remove | `path` |
-| `cp` | Copy | `source, dest` |
-| `mv` | Move | `source, dest` |
-| `grep` | Search | `pattern, path` |
-| `kill` | Kill process | `pid` |
-| `write` | Write file | `content, path` |
-| `run` | Execute | `command, ...args` |
+`ToolRegistry` manages available system tools. Default tools: `ls`, `cat`, `ps`, `pwd`, `whoami`, `cd`, `mkdir`, `rm`, `cp`, `mv`, `grep`, `kill`, `write`, `run`.
 
 ## Adding New Tools
 
 1. Add to `tools.rs` `register_default_tools()`:
+
 ```rust
 Tool {
     name: "mytool".to_string(),
@@ -90,6 +71,7 @@ Tool {
 ```
 
 2. Add execution handler:
+
 ```rust
 fn execute_mytool(&self, args: &[String]) -> Result<String, ToolError> {
     // implementation
@@ -97,36 +79,46 @@ fn execute_mytool(&self, args: &[String]) -> Result<String, ToolError> {
 ```
 
 3. Add match arm in `execute()`:
+
 ```rust
 "mytool" => self.execute_mytool(args),
 ```
 
 ## IPC with Python AI Engine
 
-The shell connects to the Python AI engine via:
+The shell connects to the Python kernel via Unix socket (primary) or TCP (future multi-client):
 
-**Unix Socket** (preferred for production):
+**Unix Socket** (production):
 ```rust
-let stream = std::os::unix::net::UnixStream::connect("/var/run/bantu-ai.sock");
+let stream = std::os::unix::net::UnixStream::connect("/tmp/bantu.sock");
 ```
 
-**Stdio** (for subprocess mode):
+**TCP** (multi-client / telnet use):
 ```rust
-let mut child = Command::new("python")
-    .args(["-m", "bantu_ai.engine"])
-    .stdout(Stdio::piped())
-    .stdin(Stdio::piped())
-    .spawn()?;
+// Python kernel listens on 127.0.0.1:18792
 ```
 
-**Message format** (JSON):
+**AI message protocol** (JSON over socket):
+
 ```json
-{
-  "type": "tool_call",
-  "tool": "ls",
-  "args": ["/home"],
-  "context": {}
-}
+// Shell → Kernel
+{"cmd": "ai", "text": "hello"}
+
+// Kernel → Shell (success)
+{"ok": true, "result": "Hello! How can I help?"}
+
+// Kernel → Shell (error)
+{"ok": false, "error": "error message"}
+```
+
+**Tool command protocol**:
+
+```json
+// Shell → Kernel
+{"cmd": "tool", "tool": "file", "method": "read", "args": {"path": "/tmp/test.txt"}}
+
+// Kernel → Shell
+{"ok": true, "result": "file contents"}
 ```
 
 ## Running

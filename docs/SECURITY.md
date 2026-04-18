@@ -144,37 +144,48 @@ Any match causes the input to be rejected with a security warning.
 
 ### Transport
 
-- **Unix domain sockets** — Not network-accessible. Named at `/run/bantu/ipc.sock`.
-- **Permissions** — `0700` owner-only (Rust shell owns the socket).
+- **Unix domain sockets** — Not network-accessible. Path: `/tmp/bantu.sock`.
+  - Permissions: `0700` owner-only.
+- **TCP socket** (future multi-client): `127.0.0.1:18792`.
 
 ### Protocol
 
-- **MessagePack** serialization — Binary format, no custom parsing.
-- **Schema-validated messages** — Each message type has a rigid schema (action, args, context, nonce).
-- **No eval()** — Commands are dispatched via a fixed match table, not dynamic execution.
+- **JSON** serialization — Line-delimited JSON messages (no external serialization library).
+- **Schema-validated messages** — Each message type has a rigid schema (`cmd`, `tool`, `method`, `args`).
+- **No eval()** — Commands are dispatched via a fixed match table in the Python kernel, not dynamic execution.
 
-### Security Properties
+### Security Properties (Aspirational)
 
-| Property | Mechanism |
-|----------|-----------|
-| **Authenticity** | HMAC-SHA256 signature on each message using a shared per-session key |
-| **Integrity** | HMAC prevents tampering; reject if signature fails |
-| **Non-replay** | Nonce + sliding window (last 100 nonces cached) |
-| **Ordering** | Sequence numbers prevent replay and reordering |
-| **Isolation** | Each IPC session is scoped to one user session |
+The following security properties are **planned** but not yet implemented:
 
-### Message Flow
+| Property | Status | Mechanism |
+|----------|--------|-----------|
+| **Authenticity** | 🔲 Planned | HMAC-SHA256 per-session key |
+| **Integrity** | 🔲 Planned | HMAC prevents tampering |
+| **Non-replay** | 🔲 Planned | Nonce + sliding window |
+| **Isolation** | ✅ Current | Unix socket scoped to user session |
+
+### Message Flow (Current)
 
 ```
 User Input
     |
     v
-Rust Shell  ---- HMAC-signed MsgPack ----> Python Engine
+Rust Shell  ---- JSON line ----> Python Kernel (socket_server.py)
     |                                           |
-    | <------- HMAC-signed response --------    |
+    | <------- JSON response --------          |
     v                                           v
 Display                                      Execute
 ```
+
+**Note:** HMAC signing and replay protection are not yet implemented. The current socket uses `0700` permissions for isolation. These are planned enhancements for production hardening.
+
+### What's NOT Protected (Known Gaps)
+
+- HMAC/MsgPack security layer — planned, not yet built
+- Replay attack protection — planned, not yet built
+- Full disk encryption (FDE) — planned, not yet implemented
+- Remote attestation via TPM — planned, not yet implemented
 
 ---
 
