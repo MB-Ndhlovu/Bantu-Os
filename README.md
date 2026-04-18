@@ -200,11 +200,14 @@ Phase 2 — Connectivity ✅ (COMPLETE)
 ├── ✅ Fintech — Stripe, M-Pesa STK push, Flutterwave, Paystack
 └── ✅ Crypto — ETH/ERC-20 multi-chain wallet (balance, send, sign)
 
-Phase 3 — Ecosystem
-├── IoT smart device support (MQTT service)
+Phase 3 — Ecosystem ✅ (IN PROGRESS)
+├── ✅ IoT — MQTT broker client, device registry, sensor ingestion
+├── 🔨 Hardware — CPU, RAM, disk, network, GPIO, USB monitoring
+├── 🔨 ServiceManager — daemon orchestrator for all services
+├── 🔨 Hardware prototype — Raspberry Pi integration
 
 Phase 4 — Scale
-├── Enterprise partnerships
+├── 🔜 Enterprise partnerships
 └── Global rollout
 ```
 
