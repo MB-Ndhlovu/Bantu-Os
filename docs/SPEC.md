@@ -90,21 +90,21 @@ The goal is a lightweight, fast, security-conscious OS that works across modern 
 ## 5. Phase 1 Features (MVP)
 
 ### Must Have
-- [ ] C init system that boots and manages at least 3 services
-- [ ] Rust shell REPL that accepts text commands
-- [ ] Python AI engine with working LLM integration (OpenAI)
-- [ ] Tool executor that dispatches commands to Python services
-- [ ] File service (read, write, list files)
-- [ ] Memory module (vector store + knowledge graph)
-- [ ] Working CI pipeline (pytest + cargo check + gcc check)
-- [ ] SPEC.md, CONTRIBUTING.md, SECURITY.md
+- [x] C init system that boots and manages at least 3 services
+- [x] Rust shell REPL that accepts text commands
+- [x] Python AI engine with working LLM integration (OpenAI)
+- [x] Tool executor that dispatches commands to Python services
+- [x] File service (read, write, list files)
+- [x] Memory module (vector store + knowledge graph)
+- [x] Working CI pipeline (pytest + cargo check + gcc check)
+- [x] SPEC.md, CONTRIBUTING.md, SECURITY.md
 
 ### Should Have
-- [ ] Process service (spawn and manage processes)
-- [ ] Scheduling service (calendar integration)
-- [ ] Network service (HTTP client)
+- [x] Process service (spawn and manage processes)
+- [x] Scheduling service (calendar integration)
+- [x] Network service (HTTP client)
 - [ ] Docker build environment
-- [ ] Basic integration tests
+- [x] Basic integration tests
 
 ### Could Have
 - [ ] Voice interface (text-to-speech, speech-to-text)

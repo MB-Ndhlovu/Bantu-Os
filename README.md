@@ -174,12 +174,12 @@ make docker-run
 |-----------|--------|-------|
 | C Init System | ✅ | Compiles, service registry, PID 1 ready |
 | Rust Shell | ✅ | REPL, tool dispatch, natural language parsing, 13 tests |
-| Python AI Engine | ✅ | Kernel, LLM manager, OpenAI provider, agentic loop, 43 tests |
+| Python AI Engine | ✅ | Kernel, LLM manager, OpenAI provider, agentic loop, 28+ tests |
 | Tool Executor | ✅ | Async tool pipeline, multi-tool calls, error handling |
 | ChromaDB Memory | ✅ | Persistent vector store, knowledge graph, embeddings |
 | Services | ✅ | FileService, ProcessService, NetworkService, scheduler |
 | CI/CD | ✅ | GitHub Actions: pytest + cargo test on every push/PR |
-| Tests | ✅ | 52 Python tests + 13 Rust tests passing |
+| Tests | ✅ | 97 Python tests + 13 Rust tests passing |
 
 ---
 
@@ -191,7 +191,7 @@ Phase 1 is complete. All layers are functional and tested.
 Phase 1 — Foundation ✅ (COMPLETE)
 ├── ✅ C Init System — PID 1, service registry, signal handling
 ├── ✅ Rust Shell — REPL, natural language dispatch, 13 tests
-├── ✅ Python AI Engine — Kernel, LLM manager, agentic loop, 43 tests
+├── ✅ Python AI Engine — Kernel, LLM manager, agentic loop, 97 Python tests
 ├── ✅ Python Services — FileService, ProcessService, NetworkService
 └── ✅ Memory — ChromaDB persistent store, knowledge graph, embeddings
 

@@ -3,13 +3,12 @@
 ## Layer Overview
 
 Bantu-OS is structured in abstraction layers, each building on the one below it.
-
 ```
-Layer 4 — Python Services   (bantu_os/)
-Layer 3 — Rust FFI Bridge  (bantu_os/c_bridge/)
-Layer 2 — C Init Daemon    (init/)
-Layer 1 — Linux Kernel     (host OS / container runtime)
-Layer 0 — Hardware         (bare metal or VM)
+Layer 4 — Python AI Services   (bantu_os/)
+Layer 3 — Python AI Engine    (bantu_os/core/kernel/)
+Layer 2 — Rust Shell          (shell/)
+Layer 1 — C Init System        (init/)
+Layer 0 — Linux Kernel        (host kernel / container runtime)
 ```
 
 ---
@@ -67,25 +66,28 @@ C Init (PID 1)
 
 ---
 
-## Layer 2 → Layer 3: Rust FFI Bridge
+## Layer 2 → Layer 3: Rust Shell
 
-A thin Rust library (`bantu_os/c_bridge/`) provides:
-- **Safe wrappers** around C init socket protocol
-- **Type-safe** registration and health-check calls
-- **Async runtime bindings** (Tokio-compatible)
+The Rust shell (`shell/src/main.rs`) is the primary user-facing interface. It:
+- Provides a line-buffered REPL with built-in commands (`ls`, `cd`, `ps`, `kill`, etc.)
+- Forwards AI commands to the Python kernel via Unix socket (`/tmp/bantu.sock`)
+- Supports TCP mode (`127.0.0.1:18792`) for future multi-client scenarios
 
-This allows Python services to call into the C init without manual socket boilerplate.
-
----
+**IPC with Python kernel:**
+```rust
+let stream = std::os::unix::net::UnixStream::connect("/tmp/bantu.sock");
+// Send: {"cmd": "ai", "text": "hello"}
+// Receive: {"ok": true, "result": "..."}
+```
 
 ## Layer 3 → Layer 4: Python Services (`bantu_os/`)
 
-Python services are the user-facing layer. They:
+Python services are the intelligence layer. They:
 
-1. **Register on startup** — call `c_bridge.register("service_name")`
-2. **Send heartbeats** — periodic health pings to the C init
-3. **Handle shutdown** — listen for SIGTERM propagated through the init
-4. **Access kernel** — via standard Python stdlib (`os`, `socket`, `mmap`)
+1. **Kernel** (`bantu_os/core/kernel/kernel.py`) — AI agentic loop, prompt routing, memory
+2. **Socket Server** (`bantu_os/core/socket_server.py`) — dual Unix socket + TCP bridge
+3. **Agent Manager** (`bantu_os/agents/agent_manager.py`) — multi-agent orchestration
+4. **Services** — FileService, ProcessService, NetworkService registered as tools
 
 ### Kernel interaction from Python
 

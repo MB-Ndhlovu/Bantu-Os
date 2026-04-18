@@ -2,25 +2,28 @@
 
 ## Overview
 
-Bantu-OS is a Linux-based AI-native operating system. It is structured in **5 abstraction layers**, each building on the one below it.
+Bantu-OS is a Linux-based AI-native operating system. It is structured in **4 abstraction layers**, each building on the one below it. Unlike a traditional OS, AI is the primary interface — not an app running on top.
 
 ```
 ┌──────────────────────────────────────────────────────┐
 │  LAYER 4 — Python AI Services   (bantu_os/)          │
 │  LLMs, agents, memory, file/process/network services  │
 ├──────────────────────────────────────────────────────┤
-│  LAYER 3 — Rust Shell            (shell/)            │
-│  REPL, command parsing, tool dispatch                 │
+│  LAYER 3 — Python AI Engine    (bantu_os/core/)      │
+│  Kernel, LLM manager, tool executor, agentic loop    │
 ├──────────────────────────────────────────────────────┤
-│  LAYER 2 — C Init Daemon        (init/)              │
-│  PID 1, service registry, signal handling, IPC        │
+│  LAYER 2 — Rust Shell          (shell/)              │
+│  REPL, command parsing, AI handoff via Unix socket  │
 ├──────────────────────────────────────────────────────┤
-│  LAYER 1 — Linux Kernel          (kernel/)           │
-│  Process scheduling, memory, device I/O, syscalls     │
+│  LAYER 1 — C Init System       (init/)              │
+│  PID 1, service registry, signal handling            │
 ├──────────────────────────────────────────────────────┤
-│  LAYER 0 — Hardware             (bare metal or VM)    │
+│  BASE — Linux Kernel          (host kernel)          │
+│  Process scheduling, memory, device I/O, syscalls  │
 └──────────────────────────────────────────────────────┘
 ```
+
+> **Note:** Bantu-OS runs as a process layer on the host Linux kernel. It does not compile a custom kernel or build an initramfs. The C init is for future embedded/targeted boot scenarios; the primary development and runtime flow runs the Python kernel and Rust shell as regular processes.
 
 ---
 
@@ -30,43 +33,34 @@ Physical or virtual hardware: CPU, RAM, storage, network interfaces.
 
 - **Bare metal**: x86_64 server or workstation
 - **Virtual machine**: QEMU/KVM, VirtualBox, cloud hypervisors
-- **Container** (dev only): Linux namespace isolation, shares host kernel
+- **Container** (development): Linux namespace isolation, shares host kernel
 
 ---
 
 ## Layer 1 — Linux Kernel
 
-The kernel is the foundation. Bantu-OS targets **Linux 6.x** on **x86_64**.
+The kernel is the foundation. Bantu-OS runs on the **host kernel** — it does not compile its own.
 
 **Responsibilities:**
-- Process scheduling ( CFS scheduler)
+- Process scheduling (CFS scheduler)
 - Memory management (virtual memory, cgroups)
 - Device I/O (block, network, character devices)
 - Filesystem operations (ext4, btrfs, tmpfs, procfs, sysfs)
 - Networking (TCP/IP stack)
 - System call interface (`read`, `write`, `pipe`, `epoll`, `clone`, `mount`, etc.)
 
-**Kernel config**: See `kernel/config` — minimal, embedded/lightweight, no desktop bloat.
-
-**Build**: `kernel/build.sh` compiles the kernel with the custom config.
-
-**Boot flow:**
-```
-Bootloader (GRUB/QEMU) → loads kernel + initramfs
-                          → kernel mounts initramfs as rootfs
-                          → executes /init (C init binary in initramfs)
-```
+**Bantu-OS does not modify the kernel.** It uses the host kernel as-is.
 
 ---
 
-## Layer 2 — C Init Daemon
+## Layer 2 — C Init System (`init/`)
 
-The C init (`init/init.c`) runs as **PID 1** inside the initramfs environment.
+The C init (`init/init.c`) is the first user-space process (**PID 1**) in a full boot scenario.
 
 **Responsibilities:**
-1. **Bootstraps** — mounts `/proc`, `/sys`, `/dev`, `/run`
-2. **Creates IPC socket** — `/run/bantu/init.sock` for Python service registration
-3. **Starts services** — forks and execs the Python AI engine
+1. **Bootstraps** — mounts `/proc`, `/sys`, `/dev`
+2. **Creates IPC socket** — `/tmp/bantu.sock` (dev) or `/run/bantu/init.sock` (production)
+3. **Starts services** — forks and execs the Rust shell and Python runtime
 4. **Manages lifecycle** — reaps zombies via `SIGCHLD`, handles `SIGTERM` shutdown
 5. **Event loop** — uses `epoll_create` to monitor child process file descriptors
 
@@ -81,66 +75,102 @@ The C init (`init/init.c`) runs as **PID 1** inside the initramfs environment.
 | `mount(2)` | Set up `/proc`, `/sys`, cgroups |
 | `unshare(2)` | Isolate services in namespaces |
 
-**Source**: `init/init.c`, `init/services.c`, `init/services.h`
+**Source**: `init/init.c`, `init/services.c`
 
 ---
 
-## Layer 3 — Rust Shell
+## Layer 3 — Rust Shell (`shell/`)
 
 The Rust shell (`shell/src/main.rs`) is the interactive entry point for users.
 
 **Responsibilities:**
-- REPL loop (read-eval-print)
+- REPL loop with line editing
 - Command parsing and tokenization
-- Tool dispatch protocol — calls Python services via stdio or IPC
-- Rust FFI bindings for any C init socket communication
+- Built-in shell commands (`ls`, `cd`, `ps`, `kill`, etc.)
+- AI handoff — connects to Python kernel via Unix socket (`/tmp/bantu.sock`)
+- Tool dispatch for non-AI commands
 
-**Source**: `shell/src/main.rs`, `shell/Cargo.toml`
+**Source**: `shell/src/main.rs`, `shell/src/parser.rs`, `shell/src/tools.rs`
+
+**IPC with Python kernel:**
+```rust
+// Connect to the Python kernel Unix socket
+let mut sock = std::os::unix::net::UnixStream::connect("/tmp/bantu.sock");
+// Send AI command
+sock.write_all(b"{\"cmd\": \"ai\", \"text\": \"hello\"}\n");
+// Read response
+let mut response = String::new();
+sock.read_to_string(&mut response);
+```
+
+**Socket protocol** (JSON, one line per message):
+```json
+// Shell → Kernel (AI mode)
+{"cmd": "ai", "text": "hello"}
+
+// Kernel → Shell (success)
+{"ok": true, "result": "Hello!"}
+
+// Kernel → Shell (error)
+{"ok": false, "error": "no API key"}
+```
 
 ---
 
-## Layer 4 — Python AI Services
+## Layer 4 — Python AI Engine (`bantu_os/`)
 
-Python services are the user-facing layer of Bantu-OS.
+Python is the user-facing layer of Bantu-OS. It contains the AI engine and all system services.
 
 **Core components:**
-- `bantu_os/core/kernel/` — AI kernel, LLM manager
-- `bantu_os/agents/` — agentic loop, task manager, tool executor
-- `bantu_os/memory/` — vector DB (ChromaDB), knowledge graph, session management
-- `bantu_os/services/` — file, process, network, scheduler services
-- `main.py` — entry point, starts all services
 
-**IPC with C init:**
-- Python services connect to `/run/bantu/init.sock`
-- Register service name + PID on startup
-- Send periodic health heartbeats
-- Receive `SIGTERM` via init on shutdown
+| Module | File | Purpose |
+|--------|------|---------|
+| Kernel | `bantu_os/core/kernel/kernel.py` | AI kernel, agentic loop, prompt routing |
+| LLM Manager | `bantu_os/core/llm_manager.py` | Model routing, token budgets, provider abstraction |
+| Tool Executor | `bantu_os/core/tool_executor/` | JSON schema registry, async tool execution |
+| Socket Server | `bantu_os/core/socket_server.py` | Dual Unix socket + TCP bridge (Rust ↔ Python) |
+| AI Engine | `bantu_os/ai/engine.py` | AIEngine class with built-in handlers |
+| Agent Manager | `bantu_os/agents/agent_manager.py` | Multi-agent orchestration, tool registry, message passing |
+| File Service | `bantu_os/services/file_service.py` | Read, write, list, search files |
+| Process Service | `bantu_os/services/process_service.py` | Spawn, monitor, kill processes |
+| Network Service | `bantu_os/services/network_service.py` | HTTP requests, API calls, connectivity |
+| Memory | `bantu_os/core/memory/` | ChromaDB vector store, session management |
 
-**Rust bridge** (`bantu_os/c_bridge/`): Type-safe wrappers around the socket protocol.
+**Entry point**: `main.py` — starts the kernel server and registers all services.
 
 ---
 
-## Boot Sequence (Full)
+## Boot Sequence
 
+### Development (primary)
+```bash
+# 1. Build the Rust shell
+cd shell && cargo build --release
+
+# 2. Start the Python kernel + Rust shell together
+./start.sh
+  # a. start.sh starts socket_server.py (Python kernel)
+  # b. Waits for /tmp/bantu.sock to appear
+  # c. Pings the server to verify health
+  # d. Launches shell/target/release/bantu (Rust shell)
+  # e. Rust shell connects to /tmp/bantu.sock on first AI command
+
+# 3. User interacts with Rust REPL
+#    "ai hello" → Rust shell sends {"cmd":"ai","text":"hello"} over socket
+#               → Python kernel processes via LLM
+#               → Response returns over socket → Rust shell prints
 ```
-1. Bootloader loads: kernel (bzImage) + initramfs (initramfs.cpio.gz)
-2. Kernel decompresses, initializes, mounts initramfs as rootfs
-3. Kernel executes /init (C init binary) → PID 1
-4. C init:
-   a. Mount /proc, /sys, /dev, /run (tmpfs)
-   b. Create /run/bantu/init.sock
-   c. Parse /etc/bantu/services.conf (if present)
-   d. fork() + exec(python3 main.py) → Python AI engine
-5. Python services start, register via c_bridge → init.sock
-6. C init enters epoll event loop:
-   - Monitor SIGCHLD from children
-   - Accept socket connections (service registration)
-   - Handle control commands (shutdown, restart)
-7. On shutdown (SIGTERM):
-   a. C init sends SIGTERM to all services
-   b. Waits for graceful exit (5s timeout)
-   c. SIGKILL any remaining processes
-   d. syncfs + reboot()
+
+### Production / Embedded (future)
+```bash
+# 1. Bootloader loads kernel + initramfs
+# 2. Kernel executes /init (C init binary) → PID 1
+# 3. C init mounts /proc, /sys, /dev
+# 4. C init creates /run/bantu/init.sock
+# 5. C init forks Python kernel + Rust shell
+# 6. Python services register via socket_server
+# 7. C init enters epoll event loop
+# 8. On SIGTERM: C init sends SIGTERM to all services → graceful shutdown
 ```
 
 ---
@@ -149,39 +179,69 @@ Python services are the user-facing layer of Bantu-OS.
 
 ```
 bantu-os/
-├── kernel/                 # Layer 1: Linux kernel
-│   ├── config              # .config for x86_64 (minimal/embedded)
-│   └── build.sh            # Kernel build script
-├── boot/                   # Boot artifacts
-│   ├── initramfs/          # Initramfs build system
-│   │   ├── build.sh        # Builds initramfs.cpio.gz
-│   │   └── overlay/        # Files packaged into initramfs
-│   │       ├── init        # C init binary
-│   │       ├── bin/        # Busybox symlinks
-│   │       ├── lib/        # Shared libraries
-│   │       └── run/bantu/  # Runtime socket directory
-├── init/                   # Layer 2: C init system
-│   ├── init.c              # PID 1 entry point
+├── README.md              # Project overview
+├── AGENTS.md              # Agent team instructions
+├── CONTRIBUTING.md       # Contribution guide
+├── SPEC.md                # Full project specification
+│
+├── init/                  # Layer 2: C init system
+│   ├── init.c             # PID 1 entry point
 │   ├── services.c          # Service registry
-│   ├── services.h          # Service definitions
-│   ├── syscall.c           # System call wrappers
+│   ├── ipc/ipc.c          # IPC helpers
+│   ├── syscall.c          # System call wrappers
 │   └── Makefile
-├── shell/                  # Layer 3: Rust shell
-│   ├── src/main.rs
-│   └── Cargo.toml
-├── bantu_os/               # Layer 4: Python AI services
-│   ├── core/kernel/        # AI kernel, LLM manager
-│   ├── agents/             # Agent loop, task manager
-│   ├── memory/             # Vector DB, graph, embeddings
-│   ├── services/           # File, process, network services
-│   └── c_bridge/           # Rust-Python FFI bridge
-├── docs/                   # Documentation
-│   ├── ARCHITECTURE.md      # This file (5-layer overview)
-│   ├── KERNEL.md           # Layer 1 details
-│   ├── INIT.md             # Layer 2 details
-│   └── INDEX.md            # Documentation index
-├── Makefile                # Root build orchestrator
-└── README.md
+│
+├── shell/                 # Layer 3: Rust shell
+│   ├── Cargo.toml
+│   └── src/
+│       ├── main.rs        # REPL entry point
+│       ├── parser.rs      # Command parser
+│       ├── tools.rs       # Tool registry + built-in tools
+│       └── lib.rs
+│
+├── bantu_os/              # Layer 4: Python AI engine + services
+│   ├── __init__.py
+│   ├── main.py            # Entry point
+│   ├── config.py          # Settings management
+│   ├── core/
+│   │   ├── kernel/        # Kernel + LLM manager
+│   │   ├── llm_manager.py # Model routing, token budgets
+│   │   ├── socket_server.py # Unix socket + TCP bridge
+│   │   ├── tool_executor/ # Tool schema registry + executor
+│   │   └── memory/        # ChromaDB vector store
+│   ├── ai/
+│   │   └── engine.py      # AIEngine with built-in handlers
+│   ├── agents/
+│   │   └── agent_manager.py # Multi-agent orchestration
+│   ├── services/
+│   │   ├── file_service.py
+│   │   ├── process_service.py
+│   │   ├── network_service.py
+│   │   └── scheduler_service.py
+│   └── security/
+│       └── basic_secrets.py
+│
+├── tests/                 # Test suite
+│   ├── unit/             # Unit tests
+│   ├── agent/            # Agent tests
+│   ├── kernel/           # Socket server tests
+│   ├── integration/      # Integration tests
+│   ├── conftest.py       # Pytest fixtures (stub LLM provider)
+│   └── test_e2e_shell_kernel.py # End-to-end boot test
+│
+├── docs/                  # Architecture docs
+│   ├── ARCHITECTURE.md   # This file
+│   ├── KERNEL.md         # Kernel design details
+│   ├── SHELL.md          # Rust shell documentation
+│   ├── SECURITY.md       # Security model
+│   ├── SPEC.md           # Project specification
+│   └── INIT.md           # C init documentation
+│
+├── start.sh               # Boot launcher (Python kernel + Rust shell)
+├── Makefile               # Root build orchestrator
+└── .github/
+    └── workflows/
+        └── ci.yml        # GitHub Actions CI
 ```
 
 ---
@@ -192,29 +252,40 @@ The root `Makefile` provides:
 
 | Target | Description |
 |--------|-------------|
-| `make kernel` | Build the Linux kernel using `kernel/config` |
-| `make initramfs` | Build the initramfs via `boot/initramfs/build.sh` |
-| `make image` | Assemble final OS image (kernel + initramfs + rootfs) |
-| `make all` | Build kernel + initramfs |
-| `make clean-kernel` | Remove kernel build artifacts |
+| `make build` | Build Python package |
+| `make test` | Run pytest + cargo test |
+| `make docker-build` | Build Docker image |
+| `make docker-run` | Run inside container |
+
+**Quick start:**
+```bash
+git clone https://github.com/MB-Ndhlovu/Bantu-Os.git
+cd Bantu-Os
+pip install -e .          # Install Python deps
+cd init && make            # Build C init
+cd ../shell && cargo build --release  # Build Rust shell
+python -m pytest tests/ -v # Run tests
+./start.sh                # Launch full system
+```
 
 ---
 
 ## Design Principles
 
-1. **Kernel is the source of truth** — all process lifecycle flows through it
-2. **C init is minimal** — no business logic, only orchestration + IPC
-3. **Rust for safety + performance** — shell and FFI bridge
+1. **Kernel is the foundation** — host Linux handles all hardware and process scheduling
+2. **C init is minimal** — only orchestration + IPC for PID 1 scenarios
+3. **Rust for safety + performance** — shell with memory safety, no GC
 4. **Python for expressiveness** — agents, LLMs, memory, rich ecosystem
-5. **Graceful shutdown** — `SIGTERM` propagates cleanly PID 1 → services
-6. **No runtime dependencies above the kernel** — each layer is self-contained
+5. **Socket over FFI** — Rust ↔ Python communicate via Unix socket, not FFI
+6. **Graceful shutdown** — `SIGTERM` propagates cleanly PID 1 → services
+7. **Test everything** — CI runs pytest + cargo test on every push/PR
 
 ---
 
 ## Next Steps (Roadmap)
 
-- [ ] Integrate `kernel/config` with CI to verify kernel builds
-- [ ] Add rootfs creation to `make image` (stage3/rootfs.tar.gz)
-- [ ] Add GRUB/QEMU config examples in `docs/`
-- [ ] Benchmark kernel boot time and init sequence
-- [ ] Add seccomp policy for C init (syscall filtering)
+- [ ] C init wiring — connect service registry to C init PID 1
+- [ ] End-to-end boot test — full boot from C init to AI response
+- [ ] ChromaDB memory — persistence across sessions
+- [ ] Phase 2: Messaging, fintech, crypto services
+- [ ] IoT service (MQTT) for hardware prototypes
