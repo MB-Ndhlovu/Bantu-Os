@@ -128,39 +128,39 @@ pause
 
 # ── Step 4: File service ──────────────────────────────────────────────
 step "File Service — Read System Info"
-echo -e "  ${CYAN}Tool:${RESET} file_read"
+echo -e "  ${CYAN}Tool:${RESET} file.read"
 echo -e "  ${CYAN}Args:${RESET} path=/etc/hostname"
 RESPONSE=$(send_json '{"cmd":"tool","tool":"file","method":"read","args":{"path":"/etc/hostname"}}')
 echo -e "  Response: $RESPONSE"
 if echo "$RESPONSE" | grep -q '"ok":true'; then
-  ok "file_read — working"
+  ok "file.read — working"
 else
-  fail "file_read failed"
+  fail "file.read failed"
 fi
 pause
 
 # ── Step 5: Process service ────────────────────────────────────────────
 step "Process Service — List Running Processes"
-echo -e "  ${CYAN}Tool:${RESET} process_list"
+echo -e "  ${CYAN}Tool:${RESET} process.list_processes"
 RESPONSE=$(send_json '{"cmd":"tool","tool":"process","method":"list_processes","args":{}}')
 echo -e "  Response (first 200 chars): ${RESPONSE:0:200}…"
 if echo "$RESPONSE" | grep -q '"ok":true'; then
-  ok "process_list_processes — working"
+  ok "process.list_processes — working"
 else
-  fail "process_list_processes failed"
+  fail "process.list_processes failed"
 fi
 pause
 
 # ── Step 6: Network service ────────────────────────────────────────────
 step "Network Service — Connectivity Check"
-echo -e "  ${CYAN}Tool:${RESET} network_check"
+echo -e "  ${CYAN}Tool:${RESET} network.ping"
 echo -e "  ${CYAN}Args:${RESET} host=github.com"
-RESPONSE=$(send_json '{"cmd":"tool","tool":"network","method":"check","args":{"host":"github.com"}}')
+RESPONSE=$(send_json '{"cmd":"tool","tool":"network","method":"ping","args":{"host":"github.com"}}')
 echo -e "  Response: $RESPONSE"
 if echo "$RESPONSE" | grep -q '"ok":true'; then
-  ok "network_check — working"
+  ok "network.ping — working"
 else
-  fail "network_check failed"
+  fail "network.ping failed"
 fi
 pause
 
@@ -170,9 +170,9 @@ echo -e "  ${CYAN}Tool:${RESET} hardware_cpu_stats"
 RESPONSE=$(send_json '{"cmd":"tool","tool":"hardware","method":"hardware_cpu_stats","args":{}}')
 echo -e "  Response: $RESPONSE"
 if echo "$RESPONSE" | grep -q '"ok":true'; then
-  ok "hardware_cpu_stats — working"
+  ok "hardware.cpu_stats — working"
 else
-  fail "hardware_cpu_stats failed"
+  fail "hardware.cpu_stats failed"
 fi
 pause
 
@@ -181,21 +181,21 @@ echo -e "  ${CYAN}Tool:${RESET} hardware_memory_stats"
 RESPONSE=$(send_json '{"cmd":"tool","tool":"hardware","method":"hardware_memory_stats","args":{}}')
 echo -e "  Response: $RESPONSE"
 if echo "$RESPONSE" | grep -q '"ok":true'; then
-  ok "hardware_memory_stats — working"
+  ok "hardware.memory_stats — working"
 else
-  fail "hardware_memory_stats failed"
+  fail "hardware.memory_stats failed"
 fi
 pause
 
 # ── Step 8: IoT service ──────────────────────────────────────────────
 step "IoT Service — Device Registry"
-echo -e "  ${CYAN}Tool:${RESET} iot_list_devices"
+echo -e "  ${CYAN}Tool:${RESET} iot.list_registered_devices"
 RESPONSE=$(send_json '{"cmd":"tool","tool":"iot","method":"list_devices","args":{}}')
 echo -e "  Response: $RESPONSE"
 if echo "$RESPONSE" | grep -q '"ok":true'; then
-  ok "iot_list_devices — working"
+  ok "iot.list_registered_devices — working"
 else
-  fail "iot_list_devices failed"
+  fail "iot.list_registered_devices failed"
 fi
 pause
 
