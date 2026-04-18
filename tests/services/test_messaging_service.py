@@ -32,19 +32,11 @@ class TestMessagingService:
         with pytest.raises(ValueError, match="Unknown tool"):
             await svc.use_tool_async("unknown_tool", {})
 
-    def test_email_requires_credentials(self):
+    async def test_email_requires_credentials(self):
         from bantu_os.services.messaging import MessagingService
-
         svc = MessagingService()
-        # No env vars set in test — should raise
-        import asyncio
-
-        with pytest.raises(EnvironmentError, match="SMTP_USERNAME"):
-            asyncio.run(svc.messaging_send_email(
-                to="test@example.com",
-                subject="Hello",
-                body="Test",
-            ))
+        with pytest.raises(OSError, match="SMTP"):
+            await svc.messaging_send_email(to="test@example.com", subject="Hi", body="Hello")
 
     def test_telegram_requires_token(self):
         from bantu_os.services.messaging import MessagingService
@@ -58,14 +50,8 @@ class TestMessagingService:
                 text="Hello",
             ))
 
-    def test_sms_requires_twilio_credentials(self):
+    async def test_sms_requires_twilio_credentials(self):
         from bantu_os.services.messaging import MessagingService
-
         svc = MessagingService()
-        import asyncio
-
-        with pytest.raises(EnvironmentError, match="TWILIO_ACCOUNT_SID"):
-            asyncio.run(svc.messaging_send_sms(
-                to="+27612345678",
-                body="Hello",
-            ))
+        with pytest.raises(OSError, match="TWILIO"):
+            await svc.messaging_send_sms(to="+27612345678", body="Hello")
