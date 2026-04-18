@@ -1,11 +1,6 @@
 """
 MessagingService tool schemas.
 Each schema follows the kernel tool executor format.
-
-Env vars required:
-  SMTP_PASSWORD       — sender email password (or app password)
-  TWILIO_AUTH_TOKEN  — Twilio account auth token
-  TELEGRAM_BOT_TOKEN — Telegram bot token from @BotFather
 """
 from __future__ import annotations
 
@@ -38,15 +33,6 @@ TOOL_SCHEMAS = {
             },
             "required": ["to", "subject", "body"],
         },
-        "returns": {
-            "type": "object",
-            "properties": {
-                "message_id": {
-                    "type": "string",
-                    "description": "SMTP message ID of the sent email.",
-                },
-            },
-        },
     },
     "messaging_send_sms": {
         "description": "Send an SMS via Twilio.",
@@ -63,19 +49,6 @@ TOOL_SCHEMAS = {
                 },
             },
             "required": ["to", "body"],
-        },
-        "returns": {
-            "type": "object",
-            "properties": {
-                "sid": {
-                    "type": "string",
-                    "description": "Twilio message SID.",
-                },
-                "status": {
-                    "type": "string",
-                    "description": "Current delivery status.",
-                },
-            },
         },
     },
     "messaging_send_telegram": {
@@ -96,15 +69,6 @@ TOOL_SCHEMAS = {
                 },
             },
             "required": ["chat_id", "text"],
-        },
-        "returns": {
-            "type": "object",
-            "properties": {
-                "message_id": {
-                    "type": "integer",
-                    "description": "Telegram message ID.",
-                },
-            },
         },
     },
 }

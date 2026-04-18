@@ -1,50 +1,79 @@
 """
-Tests for FintechService (Phase 2).
-All tool tests are skipped until implementation.
+Tests for FintechService.
 """
-from __future__ import annotations
-
 import pytest
-from bantu_os.services.fintech.fintech_service import FintechService
+
+pytestmark = pytest.mark.asyncio
 
 
 class TestFintechService:
-    @pytest.fixture
-    def svc(self) -> FintechService:
-        return FintechService()
+    """Health check and schema tests."""
 
-    def test_health_check(self, svc: FintechService) -> None:
+    def test_health_check_returns_status(self):
+        from bantu_os.services.fintech import FintechService
+
+        svc = FintechService()
         result = svc.health_check()
         assert result["status"] == "ok"
         assert result["service"] == "fintech"
+        assert "stripe_configured" in result
+        assert "mpesa_configured" in result
+        assert "flutterwave_configured" in result
+        assert "paystack_configured" in result
 
-    def test_service_info(self, svc: FintechService) -> None:
-        info = svc.get_service_info()
-        assert info["name"] == "fintech"
+    async def test_unknown_tool_raises(self):
+        from bantu_os.services.fintech import FintechService
 
-    def test_schema_fields(self, svc: FintechService) -> None:
-        schema = svc.tool_schema
-        tool_names = list(schema.keys())
-        assert tool_names == [
-            'fintech_create_payment',
-            'fintech_check_balance',
-            'fintech_request_mpesa',
-            'fintech_request_flutterwave',
-            'fintech_request_paystack',
-        ]
+        svc = FintechService()
+        with pytest.raises(ValueError, match="Unknown tool"):
+            await svc.use_tool_async("unknown_tool", {})
 
-    @pytest.mark.asyncio
-    async def test_create_payment(self, svc: FintechService) -> None:
-        pytest.skip("fintech_create_payment not yet implemented")
+    async def test_create_payment_requires_stripe_key(self):
+        from bantu_os.services.fintech import FintechService
 
-    @pytest.mark.asyncio
-    async def test_request_mpesa(self, svc: FintechService) -> None:
-        pytest.skip("fintech_request_mpesa not yet implemented")
+        svc = FintechService()
+        with pytest.raises(EnvironmentError, match="STRIPE_SECRET_KEY"):
+            await svc.fintech_create_payment(
+                amount=100,
+                currency="usd",
+                customer_email="test@example.com",
+            )
 
-    @pytest.mark.asyncio
-    async def test_request_flutterwave(self, svc: FintechService) -> None:
-        pytest.skip("fintech_request_flutterwave not yet implemented")
+    async def test_check_balance_unknown_provider(self):
+        from bantu_os.services.fintech import FintechService
 
-    @pytest.mark.asyncio
-    async def test_request_paystack(self, svc: FintechService) -> None:
-        pytest.skip("fintech_request_paystack not yet implemented")
+        svc = FintechService()
+        with pytest.raises(ValueError, match="Unknown provider"):
+            await svc.fintech_check_balance(provider="unknown")
+
+    async def test_mpesa_requires_credentials(self):
+        from bantu_os.services.fintech import FintechService
+
+        svc = FintechService()
+        with pytest.raises(EnvironmentError, match="MPESA_CONSUMER_KEY"):
+            await svc.fintech_request_mpesa(
+                phone="+254712345678",
+                amount=100,
+                reference="TEST-001",
+            )
+
+    async def test_paystack_requires_key(self):
+        from bantu_os.services.fintech import FintechService
+
+        svc = FintechService()
+        with pytest.raises(EnvironmentError, match="PAYSTACK_SECRET_KEY"):
+            await svc.fintech_request_paystack(
+                amount=5000,
+                email="test@example.com",
+            )
+
+    async def test_flutterwave_requires_key(self):
+        from bantu_os.services.fintech import FintechService
+
+        svc = FintechService()
+        with pytest.raises(EnvironmentError, match="FLUTTERWAVE_SECRET_KEY"):
+            await svc.fintech_request_flutterwave(
+                amount=100,
+                currency="ZAR",
+                reference="TEST-001",
+            )
