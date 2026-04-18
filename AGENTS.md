@@ -20,9 +20,10 @@ BASE:    Linux Kernel
 
 - C init: ✅ Compiles and works (init/init.c)
 - Rust shell: ✅ Builds (shell/src/main.rs, shell/Cargo.toml), 13 tests passing
-- Python AI engine: ✅ Kernel, LLM manager, agentic loop, 43 tests passing
+- Python AI engine: ✅ Kernel, LLM manager, agentic loop, 43+ tests passing
 - ChromaDB memory: ✅ Persistent vector store, 9 tests passing
 - Services: ✅ FileService, ProcessService, NetworkService
+- Init bridge: ✅ InitBridge for C init service registry, registered with C init on boot
 - CI: ✅ pytest + cargo test on every push/PR
 - **Phase 2 (skeleton): 🔨 Messaging/Fintech/Crypto services — architecture defined, stubs created**
 
@@ -46,9 +47,13 @@ BASE:    Linux Kernel
    - `tests/kernel/test_socket_server.py` — 18 integration tests passing
    - Tool protocol: `{"cmd": "tool", "tool": "file|process|network", "method": "method_name", "args": {...}}`
    - AI protocol unchanged: `{"cmd": "ai", "text": "..."}`
-   - Remaining: end-to-end test with real Rust shell binary + kernel boot via `start.sh`
-2. AI-native shell UX (polish REPL, history, tab completion)
-3. C init integration (service registry wiring into the C init system)
+2. ~~AI-native shell UX (polish REPL, history, tab completion)~~ ✅ DONE
+   - Persistent history, clear/status commands, better AI mode UX
+   - `tests/test_e2e_shell_kernel.py` — end-to-end smoke test
+3. ~~C init integration (InitBridge for service registry)~~ ✅ DONE
+   - `bantu_os/core/init_bridge.py` — Python service registration with C init
+   - Graceful shutdown via SIGTERM propagation from C init → services
+   - Still to do: wire init_bridge heartbeat into SocketServer (background task)
 4. Phase 2: Connectivity (messaging, fintech APIs, crypto wallet)
 
 ## Commit Convention
