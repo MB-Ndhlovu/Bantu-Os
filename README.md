@@ -204,7 +204,7 @@ Phase 3 — Ecosystem ✅ (COMPLETE)
 ├── ✅ IoT — MQTT broker client, device registry, sensor ingestion
 ├── ✅ Hardware — CPU, RAM, disk, network, GPIO, USB monitoring
 ├── ✅ Multi-user sessions — isolated per-user AI contexts, token budgets, tool permissions
-├── 🔜 ServiceManager — daemon orchestrator for all services
+├── ✅ ServiceManager — discover, start/stop, health checks, auto-restart, event hooks
 ├── 🔜 Hardware prototype — Raspberry Pi integration
 
 Phase 4 — Scale
