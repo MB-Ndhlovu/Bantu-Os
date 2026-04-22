@@ -125,6 +125,11 @@ fn run_simple_loop(registry: &tools::ToolRegistry) {
 fn process_input(input: &str, registry: &tools::ToolRegistry) -> Option<String> {
     let trimmed = input.trim();
 
+    // Pipe mode: detect raw JSON from stdin and forward directly to kernel
+    if trimmed.starts_with('{') {
+        return Some(handle_raw_json(trimmed));
+    }
+
     match trimmed {
         "exit" | "quit" => {
             println!("Goodbye from Bantu-OS.");
@@ -228,6 +233,39 @@ fn handle_ai_input(input: &str) {
     } else {
         println!("AI: (invalid response)");
     }
+}
+
+/// Handle raw JSON input piped from stdin (pipe mode).
+/// Directly forwards the JSON to the kernel socket and prints the result.
+fn handle_raw_json(json_input: &str) -> String {
+    let mut sock = match std::os::unix::net::UnixStream::connect(SOCKET_PATH) {
+        Ok(s) => s,
+        Err(e) => {
+            return format!("Socket error: {e}");
+        }
+    };
+
+    let msg = json_input.to_string();
+    if let Err(e) = sock.write_all(msg.as_bytes()).and_then(|_| sock.write_all(b"\n")) {
+        return format!("Write error: {e}");
+    }
+
+    let mut response = String::new();
+    match sock.read_to_string(&mut response) {
+        Ok(_) => {}
+        Err(e) => {
+            return format!("Read error: {e}");
+        }
+    }
+
+    if let Ok(resp) = serde_json::from_str::<serde_json::Value>(&response) {
+        if resp["ok"].as_bool() == Some(true) {
+            return resp["result"].as_str().unwrap_or("(no response)").to_string();
+        } else {
+            return format!("Error: {}", resp["error"].as_str().unwrap_or("unknown"));
+        }
+    }
+    "Invalid response from kernel".to_string()
 }
 
 fn get_shell_help() -> String {
