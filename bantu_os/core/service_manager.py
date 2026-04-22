@@ -49,6 +49,15 @@ try:
 except ImportError:
     _IOT_AVAILABLE = False
 
+# ─── Auth (Phase 3) ──────────────────────────────────────────────────────
+try:
+    from bantu_os.auth import AuthService
+
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+    AuthService = None
+
 
 class ServiceState(Enum):
     STOPPED = "stopped"
@@ -86,6 +95,7 @@ class ServiceManager:
         self._kernel_handle: Optional[ServiceHandle] = None
         self._shutdown = asyncio.Event()
         self._restart_policy = {"max_restarts": 3, "restart_delay": 5.0}
+        self._auth = AuthService() if _AUTH_AVAILABLE else None
 
     # ─── Kernel management ─────────────────────────────────────────────────
 

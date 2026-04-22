@@ -25,11 +25,11 @@ SOCK_PATH = "/tmp/bantu-admin.sock"
 TIMEOUT = 5.0
 
 
-def send_command(cmd: str, service: str | None = None) -> dict:
+def send_command(cmd: str, arg: str | None = None) -> dict:
     """Send a JSON command to the admin socket and return the response."""
-    payload = {"cmd": cmd}
-    if service:
-        payload["service"] = service
+    payload = {"cmd": cmd, "arg": arg}
+    if arg:
+        payload["arg"] = arg
 
     try:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -92,6 +92,17 @@ def main() -> None:
 
     sub.add_parser("shutdown", help="Shutdown the daemon")
 
+    user_add = sub.add_parser("user-add", help="Register a new user")
+    user_add.add_argument("username", help="Username")
+    user_add.add_argument(
+        "--api-key", help="Optional API key (auto-generated if omitted)"
+    )
+
+    user_rm = sub.add_parser("user-rm", help="Remove a user")
+    user_rm.add_argument("username", help="Username to remove")
+
+    sub.add_parser("users", help="List all registered users")
+
     args = parser.parse_args()
 
     if args.cmd == "status":
@@ -127,6 +138,27 @@ def main() -> None:
         resp = send_command("shutdown")
         print(resp.get("result", "Daemon shutdown"))
         sys.exit(0 if resp.get("ok") else 1)
+
+    elif args.cmd == "user-add":
+        resp = send_command("user_add", args.username)
+        if not resp.get("ok"):
+            print(f"Error: {resp.get('error')}", file=sys.stderr)
+            sys.exit(1)
+        print(resp["result"])
+
+    elif args.cmd == "user-rm":
+        resp = send_command("user_rm", args.username)
+        if not resp.get("ok"):
+            print(f"Error: {resp.get('error')}", file=sys.stderr)
+            sys.exit(1)
+        print(resp["result"])
+
+    elif args.cmd == "users":
+        resp = send_command("users")
+        if not resp.get("ok"):
+            print(f"Error: {resp.get('error')}", file=sys.stderr)
+            sys.exit(1)
+        print(resp["result"])
 
 
 if __name__ == "__main__":
