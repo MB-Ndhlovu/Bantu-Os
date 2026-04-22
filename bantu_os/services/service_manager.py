@@ -167,7 +167,7 @@ async def run_daemon(project_root: Path) -> None:
 
 
 def main() -> None:
-    project_root = Path(__file__).resolve().parents[3]
+    project_root = Path(__file__).resolve().parents[2]
     asyncio.run(run_daemon(project_root))
 
 
