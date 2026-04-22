@@ -26,7 +26,8 @@ SOCKET_PATH = Path("/tmp/bantu.sock")
 
 SERVICE_KERNEL = "kernel"
 SERVICE_SHELL = "shell"
-ALL_SERVICES = [SERVICE_KERNEL, SERVICE_SHELL]
+SERVICE_API = "api"
+ALL_SERVICES = [SERVICE_KERNEL, SERVICE_SHELL, SERVICE_API]
 
 
 @dataclass
@@ -85,6 +86,14 @@ class Supervisor:
             env={},
             pid_file=RUN_DIR / "shell.pid",
             log_file=LOG_DIR / "shell.log",
+        )
+
+        self.services[SERVICE_API] = ServiceDefinition(
+            name=SERVICE_API,
+            command=[sys.executable, "-m", "bantu_os.api.server"],
+            env=kernel_env,
+            pid_file=RUN_DIR / "api.pid",
+            log_file=LOG_DIR / "api.log",
         )
 
     def _ensure_dirs(self) -> None:
