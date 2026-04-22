@@ -59,3 +59,40 @@ fail_under = 60
 
 [tool.coverage.html]
 directory = 'htmlcov'
+
+[tool.black]
+line-length = 88
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+target-version = ['py39']
+
+[tool.ruff]
+line-length = 88
+select = ['E', 'F', 'W', 'I001']
+ignore = ['E501']
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+target-version = ['py39']
