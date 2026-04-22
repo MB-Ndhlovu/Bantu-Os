@@ -18,6 +18,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Bantu-OS Shell v0.1.0 — AI-powered REPL");
     println!("Type 'help' for commands, or chat naturally with the AI.\n");
 
+    // Pipe mode: read stdin line-by-line, process each, then exit
+    if !atty::is(atty::Stream::Stdin) {
+        let registry = tools::ToolRegistry::new();
+        check_kernel_status();
+        let stdin = std::io::stdin();
+        for line in stdin.lines().map_while(Result::ok) {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            if trimmed == "exit" || trimmed == "quit" {
+                break;
+            }
+            if let Some(msg) = process_input(trimmed, &registry) {
+                println!("{}", msg);
+            }
+        }
+        return Ok(());
+    }
+
     let registry = tools::ToolRegistry::new();
 
     // Set up rustyline editor with file-backed history
