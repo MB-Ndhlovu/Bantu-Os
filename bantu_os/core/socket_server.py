@@ -11,6 +11,11 @@ Protocol:
   Request (ai):    {"cmd": "ai", "text": "hello"}
   Request (tool):  {"cmd": "tool", "tool": "file", "method": "read", "args": {"path": "/tmp/test.txt"}}
   Request (ping):  {"cmd": "ping"}
+  Session commands: {"cmd": "login", "username": "alice"}
+                    {"cmd": "logout"}
+                    {"cmd": "whoami"}
+                    {"cmd": "clear_history"}
+                    {"cmd": "session_stats"}
   Response:         {"ok": true,  "result": <str>}
                     {"ok": false, "error":  <str>}
 """
@@ -23,6 +28,7 @@ import os
 import signal
 import socket
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -30,6 +36,11 @@ from typing import Optional
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from bantu_os.core.kernel import Kernel
+from bantu_os.core.session_manager import (
+    BudgetExceededError,
+    SessionManager,
+    UserSession,
+)
 from bantu_os.services.file_service import FileService
 from bantu_os.services.network_service import NetworkService
 from bantu_os.services.process_service import ProcessService
@@ -56,14 +67,17 @@ except ImportError:
     _HARDWARE_AVAILABLE = False
 
 
-def make_kernel() -> Kernel:
+def make_kernel(session: Optional[UserSession] = None) -> Kernel:
     """
     Build a Kernel with all services registered as tools.
 
     Services are registered as CLASSES (not instances) so each tool call
     instantiates a fresh service object with the caller's kwargs.
+
+    If a session is provided, the Kernel gets session-aware memory injected.
     """
     kernel = Kernel(tools={})
+
     kernel.register_tool("file", FileService)
     kernel.register_tool("process", ProcessService)
     kernel.register_tool("network", NetworkService)
@@ -79,6 +93,11 @@ def make_kernel() -> Kernel:
         kernel.register_tool("iot", IoTService)
     if _HARDWARE_AVAILABLE:
         kernel.register_tool("hardware", HardwareService)
+
+    # Inject session memory if available
+    if session is not None and session.memory.embeddings is not None:
+        kernel.memory = session.memory
+        kernel.memory_top_k = 5
 
     print(
         "[kernel] Phase 2 services registered: messaging, fintech, crypto"
@@ -109,16 +128,46 @@ class ShellProtocol(asyncio.Protocol):
     asyncio Protocol for a line-buffered JSON socket session.
 
     State machine per connection:
-      buffer -> accumulate bytes until '\\n' -> decode JSON line -> process -> respond
+      buffer -> accumulate bytes until '\n' -> decode JSON line -> process -> respond
+
+    Sessions:
+      Each connection has an optional session_id. Until the user logs in,
+      they get a temporary guest session. After login, all AI requests are
+      routed through their persistent UserSession (with memory + history).
     """
 
-    __slots__ = ("kernel", "loop", "transport", "buffer")
+    __slots__ = (
+        "session_manager",
+        "loop",
+        "transport",
+        "buffer",
+        "session_id",
+        "_kernel",
+        "_session",
+    )
 
-    def __init__(self, kernel: Kernel, loop: asyncio.AbstractEventLoop) -> None:
-        self.kernel = kernel
+    def __init__(
+        self,
+        session_manager: SessionManager,
+        loop: asyncio.AbstractEventLoop,
+    ) -> None:
+        self.session_manager = session_manager
         self.loop = loop
         self.transport: Optional[asyncio.Transport] = None
         self.buffer: bytearray = bytearray()
+        self.session_id: Optional[str] = None
+        self._kernel: Optional[Kernel] = None
+        self._session: Optional[UserSession] = None
+
+    # ── Kernel lazy-init ─────────────────────────────────────────────────────
+
+    @property
+    def kernel(self) -> Kernel:
+        if self._kernel is None:
+            self._kernel = make_kernel(self._session)
+        return self._kernel
+
+    # ── Transport ────────────────────────────────────────────────────────────
 
     def connection_made(self, transport: asyncio.Transport) -> None:
         self.transport = transport
@@ -135,6 +184,8 @@ class ShellProtocol(asyncio.Protocol):
     def connection_lost(self, exc: Optional[Exception]) -> None:
         self.transport = None
 
+    # ── Command router ────────────────────────────────────────────────────────
+
     async def _process(self, line: str) -> None:
         """Parse one JSON line, handle the command, send response."""
         try:
@@ -149,19 +200,135 @@ class ShellProtocol(asyncio.Protocol):
             await self._send({"ok": True, "result": "pong"})
             return
 
-        if cmd == "ai":
-            text = request.get("text", "")
+        # ── Session commands ────────────────────────────────────────────────
+
+        if cmd == "login":
+            username = request.get("username", "").strip()
+            if not username:
+                await self._send({"ok": False, "error": "username is required"})
+                return
             try:
-                result = await self.kernel.process_input(text)
-                await self._send({"ok": True, "result": result})
+                session = await self.session_manager.create_session(username)
+                self.session_id = session.session_id
+                self._session = session
+                self._kernel = None  # rebuild kernel with session memory
+                await self._send(
+                    {
+                        "ok": True,
+                        "result": f"Logged in as {username} (session: {session.session_id})",
+                        "session_id": session.session_id,
+                    }
+                )
             except Exception as e:
                 await self._send({"ok": False, "error": str(e)})
             return
+
+        if cmd == "logout":
+            if self.session_id:
+                await self.session_manager.destroy_session(self.session_id)
+            self.session_id = None
+            self._session = None
+            self._kernel = None
+            await self._send({"ok": True, "result": "Logged out."})
+            return
+
+        if cmd == "whoami":
+            if self._session:
+                await self._send(
+                    {
+                        "ok": True,
+                        "result": (
+                            f"User: {self._session.username}\n"
+                            f"Session: {self._session.session_id}\n"
+                            f"Requests: {self._session.request_count}\n"
+                            f"Budget: {self._session.budget.spent}/{self._session.budget.max_tokens_per_session} tokens"
+                        ),
+                        "session_id": self.session_id,
+                        "username": self._session.username,
+                    }
+                )
+            else:
+                await self._send(
+                    {
+                        "ok": True,
+                        "result": "Guest (not logged in)",
+                        "session_id": None,
+                        "username": None,
+                    }
+                )
+            return
+
+        if cmd == "clear_history":
+            if self._session and self._session._memory is not None:
+                try:
+                    self._session._memory.clear()
+                except Exception:
+                    pass
+            await self._send({"ok": True, "result": "Conversation history cleared."})
+            return
+
+        if cmd == "session_stats":
+            stats = await self.session_manager.list_sessions()
+            active = [s for s in stats if time.time() - s["last_active"] < 300]
+            await self._send(
+                {
+                    "ok": True,
+                    "result": (
+                        f"Total sessions: {len(stats)}\n"
+                        f"Active (5m): {len(active)}\n"
+                        f"Sample: {stats[0]['username'] if stats else 'none'}"
+                    ),
+                    "sessions": stats,
+                }
+            )
+            return
+
+        # ── AI command ──────────────────────────────────────────────────────
+
+        if cmd == "ai":
+            text = request.get("text", "")
+            if not text:
+                await self._send({"ok": False, "error": "text is required"})
+                return
+
+            try:
+                if self._session:
+                    # Route through session for persistent context
+                    result = await self._session.run(text)
+                else:
+                    # Guest — no session, just kernel
+                    result = await self.kernel.process_input(text)
+                await self._send({"ok": True, "result": result})
+            except BudgetExceededError:
+                await self._send(
+                    {
+                        "ok": False,
+                        "error": "Session token budget exhausted. Login again to reset.",
+                    }
+                )
+            except Exception as e:
+                await self._send({"ok": False, "error": str(e)})
+            return
+
+        # ── Tool command ──────────────────────────────────────────────────────
 
         if cmd == "tool":
             tool_name = request.get("tool", "")
             method_name = request.get("method", "")
             tool_args = request.get("args", {})
+
+            # Check permissions if session is logged in
+            if self._session:
+                permissions = self._session.permissions
+                if not permissions.can_use(tool_name):
+                    await self._send(
+                        {
+                            "ok": False,
+                            "error": f"Permission denied for tool: {tool_name}",
+                        }
+                    )
+                    return
+
             result = await self._execute_tool(tool_name, method_name, tool_args)
             if result.get("ok") is True:
                 await self._send({"ok": True, "result": result.get("result")})
@@ -173,17 +340,12 @@ class ShellProtocol(asyncio.Protocol):
 
         await self._send({"ok": False, "error": f"Unknown cmd: {cmd}"})
 
+    # ── Tool execution ─────────────────────────────────────────────────────────
+
     async def _execute_tool(
         self, tool_name: str, method_name: str, tool_args: dict
     ) -> dict:
-        """
-        Instantiate a registered service tool class and call the named method.
-
-        Protocol:
-            tool_name   — registered tool name (e.g. "file", "process", "network")
-            method_name — method on the service instance (e.g. "read", "get_system_stats")
-            tool_args   — passed to the METHOD, not the constructor
-        """
+        """Instantiate a registered service tool class and call the named method."""
         if tool_name not in self.kernel.tools:
             return {"ok": False, "error": f"Tool not found: {tool_name}"}
 
@@ -199,16 +361,15 @@ class ShellProtocol(asyncio.Protocol):
                     "ok": False,
                     "error": f"Method '{method_name}' not found on {tool_name}",
                 }
-            # Instantiate with no constructor args (services are stateless/config-free)
+
             instance = tool_class()
             method = getattr(instance, method_name)
             result = method(**tool_args)
-            # Async tool methods (async def) return coroutines — await them
+
             import inspect
 
             if inspect.iscoroutine(result):
                 result = await result
-            # Serialize dict/list results as JSON strings for the shell consumer
             if isinstance(result, (dict, list)):
                 result = json.dumps(result)
             return {"ok": True, "result": result}
@@ -219,6 +380,8 @@ class ShellProtocol(asyncio.Protocol):
             }
         except Exception as e:
             return {"ok": False, "error": f"{tool_name}.{method_name} failed: {e}"}
+
+    # ── Response writer ───────────────────────────────────────────────────────
 
     async def _send(self, payload: dict) -> None:
         """Serialize dict to JSON line and write to transport."""
@@ -237,12 +400,8 @@ class SocketServer:
     """
     Manages both Unix-domain and TCP socket servers for the shell bridge.
 
-    Args:
-        unix_path:  path for the Unix domain socket (default /tmp/bantu.sock)
-                    Override with BANTU_SOCK_PATH env var.
-        tcp_host:   host to bind TCP server on (default 127.0.0.1)
-        tcp_port:   port for TCP server (default 18792, 0xBANTU in hex)
-                    Override with BANTU_TCP_PORT env var.
+    Holds a shared SessionManager so all connections share the same session
+    state across the machine.
     """
 
     def __init__(
@@ -256,67 +415,61 @@ class SocketServer:
         )
         self.tcp_host = tcp_host
         self.tcp_port = int(os.environ.get("BANTU_TCP_PORT", str(tcp_port or 18792)))
+        self._session_manager: Optional[SessionManager] = None
         self._kernel: Optional[Kernel] = None
         self._unix_server: Optional[asyncio.Server] = None
         self._tcp_server: Optional[asyncio.Server] = None
         self._shutdown_event = asyncio.Event()
         self._started_event = asyncio.Event()
 
-    async def _get_kernel(self) -> Kernel:
-        if self._kernel is None:
-            self._kernel = make_kernel()
-        return self._kernel
+    @property
+    def session_manager(self) -> SessionManager:
+        if self._session_manager is None:
+            self._session_manager = SessionManager()
+        return self._session_manager
 
-    # ------------------------------------------------------------------
-    # Unix socket
-    # ------------------------------------------------------------------
+    async def _make_protocol_factory(self):
+        """Return a factory that creates ShellProtocol with shared session manager."""
+        loop = asyncio.get_running_loop()
+
+        def factory() -> ShellProtocol:
+            return ShellProtocol(self.session_manager, loop)
+
+        return factory
 
     async def _run_unix_server(self) -> None:
         """Start Unix-domain socket server on self.unix_path."""
         if os.path.exists(self.unix_path):
             os.unlink(self.unix_path)
 
-        kernel = await self._get_kernel()
         loop = asyncio.get_running_loop()
+        factory = await self._make_protocol_factory()
 
         self._unix_server = await loop.create_unix_server(
-            lambda: ShellProtocol(kernel, loop),
+            factory,
             path=self.unix_path,
         )
         os.chmod(self.unix_path, 0o666)
         print(f"Unix socket listening on {self.unix_path}", flush=True)
 
-    # ------------------------------------------------------------------
-    # TCP socket (optional multi-client / future telnet bridge)
-    # ------------------------------------------------------------------
-
     async def _run_tcp_server(self) -> None:
         """Start TCP socket server on self.tcp_host:self.tcp_port."""
-        kernel = await self._get_kernel()
         loop = asyncio.get_running_loop()
+        factory = await self._make_protocol_factory()
 
         self._tcp_server = await loop.create_server(
-            lambda: ShellProtocol(kernel, loop),
+            factory,
             host=self.tcp_host,
             port=self.tcp_port,
         )
-        # Find the actual port bound (in case port=0 was used)
         for sock in self._tcp_server.sockets or []:
             if sock.family == socket.AF_INET:
                 actual = sock.getsockname()
                 print(f"TCP socket listening on {actual[0]}:{actual[1]}", flush=True)
                 break
 
-    # ------------------------------------------------------------------
-    # Lifecycle
-    # ------------------------------------------------------------------
-
     async def run(self) -> None:
-        """
-        Start both servers and run until shutdown is signalled.
-
-        Signal handlers for SIGINT and SIGTERM trigger graceful shutdown.
-        """
+        """Start both servers and run until shutdown is signalled."""
         loop = asyncio.get_running_loop()
 
         for sig in (signal.SIGINT, signal.SIGTERM):
