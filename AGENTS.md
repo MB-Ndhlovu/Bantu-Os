@@ -47,13 +47,15 @@ BASE:    Linux Kernel
    - `tests/kernel/test_socket_server.py` — 18 integration tests passing
    - Tool protocol: `{"cmd": "tool", "tool": "file|process|network", "method": "method_name", "args": {...}}`
    - AI protocol unchanged: `{"cmd": "ai", "text": "..."}`
+   - Graceful "no API key" error for AI commands when LLM is not configured
+   - InitBridge heartbeat wired into SocketServer as a background task (every 30s)
 2. ~~AI-native shell UX (polish REPL, history, tab completion)~~ ✅ DONE
    - Persistent history, clear/status commands, better AI mode UX
    - `tests/test_e2e_shell_kernel.py` — end-to-end smoke test
 3. ~~C init integration (InitBridge for service registry)~~ ✅ DONE
    - `bantu_os/core/init_bridge.py` — Python service registration with C init
    - Graceful shutdown via SIGTERM propagation from C init → services
-   - Still to do: wire init_bridge heartbeat into SocketServer (background task)
+   - SocketServer registers with C init on startup and sends heartbeats every 30s
 4. Phase 2: Connectivity (messaging, fintech APIs, crypto wallet)
 
 ## Commit Convention

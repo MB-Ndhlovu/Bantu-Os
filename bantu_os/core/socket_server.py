@@ -23,7 +23,13 @@ import signal
 import socket
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # InitBridge is imported only for type annotations.
+    # It must NOT be imported at runtime here because init_bridge.py
+    # itself imports make_kernel from this module (circular dep).
+    from bantu_os.core.init_bridge import InitBridge
 
 # Ensure the project root is on the path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
@@ -32,6 +38,9 @@ from bantu_os.core.kernel import Kernel
 from bantu_os.services.file_service import FileService
 from bantu_os.services.process_service import ProcessService
 from bantu_os.services.network_service import NetworkService
+
+# NOTE: InitBridge is imported lazily inside run() to avoid a circular import
+# with init_bridge.py (which itself imports make_kernel from this module).
 
 # Phase 2: Messaging, Fintech, Crypto
 try:
@@ -253,6 +262,7 @@ class SocketServer:
         unix_path: str | None = None,
         tcp_host: str = "127.0.0.1",
         tcp_port: int | None = None,
+        init_bridge: Optional["InitBridge"] = None,
     ) -> None:
         self.unix_path = unix_path or os.environ.get("BANTU_SOCK_PATH", "/tmp/bantu.sock")
         self.tcp_host = tcp_host
@@ -262,11 +272,42 @@ class SocketServer:
         self._tcp_server: Optional[asyncio.Server] = None
         self._shutdown_event = asyncio.Event()
         self._started_event = asyncio.Event()
+        # Lazily create InitBridge at runtime to avoid circular import.
+        # init_bridge.py imports make_kernel from this module.
+        if init_bridge is not None:
+            self._init_bridge = init_bridge
+        else:
+            from bantu_os.core.init_bridge import InitBridge
+            self._init_bridge = InitBridge()
+        self._heartbeat_task: Optional[asyncio.Task[None]] = None
 
     async def _get_kernel(self) -> Kernel:
         if self._kernel is None:
             self._kernel = make_kernel()
         return self._kernel
+
+    # ------------------------------------------------------------------
+    # Heartbeat loop — runs in the background while the server is up
+    # ------------------------------------------------------------------
+
+    async def _heartbeat_loop(self, interval: float = 30.0) -> None:
+        """Send periodic heartbeats to C init until shutdown."""
+        while not self._shutdown_event.is_set():
+            try:
+                await asyncio.wait_for(
+                    asyncio.get_running_loop().run_in_executor(None, self._init_bridge.heartbeat),
+                    timeout=5.0,
+                )
+            except Exception:
+                pass  # C init socket may not be available in dev environments
+            try:
+                await asyncio.wait_for(
+                    self._shutdown_event.wait(),
+                    timeout=interval,
+                )
+                break  # shutdown event was set
+            except asyncio.TimeoutError:
+                pass  # interval elapsed, continue loop
 
     # ------------------------------------------------------------------
     # Unix socket
@@ -326,13 +367,25 @@ class SocketServer:
         await self._run_unix_server()
         await self._run_tcp_server()
 
+        # Register with C init and start heartbeat loop
+        try:
+            registered = await loop.run_in_executor(None, self._init_bridge.register)
+            if registered:
+                print("[init-bridge] Registered with C init")
+            else:
+                print("[init-bridge] C init socket not found — running standalone")
+        except Exception as e:
+            print(f"[init-bridge] Registration failed: {e} — running standalone")
+
+        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+
         print("Shell bridge ready.", flush=True)
         self._started_event.set()
 
         await self._shutdown_event.wait()
 
     async def shutdown(self, sig: Optional[signal.Signals] = None) -> None:
-        """Graceful shutdown: stop servers, unlink socket, set event."""
+        """Graceful shutdown: stop servers, unlink socket, cancel heartbeat."""
         if sig is not None:
             name = sig.name if hasattr(sig, "name") else str(sig)
             print(f"\nShutdown requested ({name})…", flush=True)
@@ -340,6 +393,10 @@ class SocketServer:
             print("\nShutting down…", flush=True)
 
         self._shutdown_event.set()
+
+        if self._heartbeat_task:
+            self._heartbeat_task.cancel()
+            self._heartbeat_task = None
 
         if self._unix_server:
             self._unix_server.close()
@@ -355,6 +412,11 @@ class SocketServer:
                 os.unlink(self.unix_path)
             except FileNotFoundError:
                 pass
+
+        try:
+            self._init_bridge.unregister()
+        except Exception:
+            pass
 
         print("Shell bridge stopped.", flush=True)
 
