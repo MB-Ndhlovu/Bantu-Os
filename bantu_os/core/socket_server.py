@@ -59,8 +59,26 @@ def make_kernel() -> Kernel:
 
     Services are registered as CLASSES (not instances) so each tool call
     instantiates a fresh service object with the caller's kwargs.
+
+    If no LLM API key is available, the kernel is returned with a
+    ``_llm_ready = False`` flag so the socket protocol handler can return
+    a helpful message instead of crashing.
     """
     kernel = Kernel(tools={})
+
+    # Detect whether LLM provider initialised successfully (API key present).
+    # If not, the kernel is still usable for tool calls — AI commands will
+    # return a clear "no API key" message.
+    try:
+        # Trigger the model-load that happens inside Kernel.__init__ and see
+        # if it raises a ValueError about a missing API key.
+        model_name = list(kernel.llm.models.keys())[0] if kernel.llm.models else None
+        if model_name is not None:
+            _ = kernel.llm.models[model_name]
+            kernel._llm_ready = True
+    except ValueError:
+        kernel._llm_ready = False
+
     kernel.register_tool("file", FileService)
     kernel.register_tool("process", ProcessService)
     kernel.register_tool("network", NetworkService)
@@ -136,6 +154,19 @@ class ShellProtocol(asyncio.Protocol):
 
         if cmd == "ai":
             text = request.get("text", "")
+            # Guard: reject AI commands when no LLM API key is configured.
+            # The kernel raises ValueError("OpenRouter API key not provided ...")
+            # during __init__ if the key is missing; we catch that at startup
+            # and set _llm_ready = False so we can return a helpful message here.
+            if not getattr(self.kernel, "_llm_ready", False):
+                await self._send({
+                    "ok": False,
+                    "error": (
+                        "AI engine not configured: set OPENROUTER_API_KEY "
+                        "(or OPENAI_API_KEY) to enable AI commands."
+                    ),
+                })
+                return
             try:
                 result = await self.kernel.process_input(text)
                 await self._send({"ok": True, "result": result})
