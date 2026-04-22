@@ -171,6 +171,22 @@ fn process_input(input: &str, registry: &tools::ToolRegistry) -> Option<String> 
             return Some("Shell mode restored.".to_string());
         }
         "status" => return Some(get_status()),
+        _ if trimmed.starts_with("login ") => {
+            let username = trimmed.strip_prefix("login ").unwrap().trim();
+            if username.is_empty() {
+                return Some("Usage: login <username>".to_string());
+            }
+            let cmd = serde_json::json!({"cmd": "login", "username": username});
+            return send_kernel_cmd(&serde_json::to_string(&cmd).unwrap());
+        }
+        "logout" => {
+            let cmd = serde_json::json!({"cmd": "logout"});
+            return send_kernel_cmd(&serde_json::to_string(&cmd).unwrap());
+        }
+        "whoami" => {
+            let cmd = serde_json::json!({"cmd": "whoami"});
+            return send_kernel_cmd(&serde_json::to_string(&cmd).unwrap());
+        }
         _ => {}
     }
 
@@ -296,6 +312,9 @@ fn get_shell_help() -> String {
     help.push_str("  clear          Clear screen\n");
     help.push_str("  status         Show kernel/socket status\n");
     help.push_str("  ai on / ai off Toggle AI mode\n");
+    help.push_str("  login <name>   Login as a user (creates persistent session)\n");
+    help.push_str("  logout         Logout and destroy session\n");
+    help.push_str("  whoami         Show current user and session info\n");
     help.push_str("  exit / quit    Exit shell\n\n");
     help.push_str("SYSTEM TOOLS:\n");
     for tool in registry.list_tools() {
@@ -306,6 +325,42 @@ fn get_shell_help() -> String {
     help.push_str("  ai on          Persistent AI conversation mode\n");
     help.push_str("  Up/Down arrows Navigate command history\n");
     help
+}
+
+/// Send a JSON command to the kernel socket and return the result string.
+fn send_kernel_cmd(json_cmd: &str) -> Option<String> {
+    let mut sock = match std::os::unix::net::UnixStream::connect(SOCKET_PATH) {
+        Ok(s) => s,
+        Err(e) => {
+            println!("AI unavailable: socket connection failed ({})", e);
+            println!("Hint: Run ./start.sh to start the Python kernel server");
+            return None;
+        }
+    };
+
+    let msg = format!("{}\n", json_cmd.trim());
+    if let Err(e) = sock.write_all(msg.as_bytes()) {
+        println!("AI unavailable: write failed ({})", e);
+        return None;
+    }
+
+    let mut response = String::new();
+    match sock.read_to_string(&mut response) {
+        Ok(_) => {}
+        Err(e) => {
+            println!("AI unavailable: read failed ({})", e);
+            return None;
+        }
+    }
+
+    if let Ok(resp) = serde_json::from_str::<serde_json::Value>(&response) {
+        if resp["ok"].as_bool() == Some(true) {
+            return Some(resp["result"].as_str().unwrap_or("(no response)").to_string());
+        } else {
+            return Some(format!("Error: {}", resp["error"].as_str().unwrap_or("unknown")));
+        }
+    }
+    Some(String::from("(invalid response)"))
 }
 
 fn check_kernel_status() {
