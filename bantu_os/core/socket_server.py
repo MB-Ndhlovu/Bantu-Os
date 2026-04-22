@@ -24,7 +24,7 @@ import signal
 import socket
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 # Ensure the project root is on the path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
