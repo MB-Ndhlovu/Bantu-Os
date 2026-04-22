@@ -2,6 +2,7 @@
 Bantu-OS CLI Server — connects Rust shell to Python AI engine.
 Listens on Unix socket /tmp/bantu.sock for commands from the Rust shell.
 """
+
 from __future__ import annotations
 
 import os

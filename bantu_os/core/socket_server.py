@@ -14,6 +14,7 @@ Protocol:
   Response:         {"ok": true,  "result": <str>}
                     {"ok": false, "error":  <str>}
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -23,7 +24,7 @@ import signal
 import socket
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 # Ensure the project root is on the path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
@@ -38,6 +39,7 @@ try:
     from bantu_os.services.messaging import MessagingService
     from bantu_os.services.fintech import FintechService
     from bantu_os.services.crypto import CryptoWalletService
+
     _PHASE2_AVAILABLE = True
 except ImportError:
     _PHASE2_AVAILABLE = False
@@ -46,6 +48,7 @@ except ImportError:
 try:
     from bantu_os.services.iot import IoTService
     from bantu_os.services.hardware import HardwareService
+
     _IOT_AVAILABLE = True
     _HARDWARE_AVAILABLE = True
 except ImportError:
@@ -77,9 +80,20 @@ def make_kernel() -> Kernel:
     if _HARDWARE_AVAILABLE:
         kernel.register_tool("hardware", HardwareService)
 
-    print(f"[kernel] Phase 2 services registered: messaging, fintech, crypto" if _PHASE2_AVAILABLE else "[kernel] Phase 2: not available")
+    print(
+        "[kernel] Phase 2 services registered: messaging, fintech, crypto"
+        if _PHASE2_AVAILABLE
+        else "[kernel] Phase 2: not available"
+    )
     if _IOT_AVAILABLE or _HARDWARE_AVAILABLE:
-        registered = [_f for _f in [("iot" if _IOT_AVAILABLE else None), ("hardware" if _HARDWARE_AVAILABLE else None)] if _f]
+        registered = [
+            _f
+            for _f in [
+                ("iot" if _IOT_AVAILABLE else None),
+                ("hardware" if _HARDWARE_AVAILABLE else None),
+            ]
+            if _f
+        ]
         print(f"[kernel] Phase 3 services registered: {', '.join(registered)}")
 
     return kernel
@@ -88,6 +102,7 @@ def make_kernel() -> Kernel:
 # ---------------------------------------------------------------------------
 # Per-client protocol handler
 # ---------------------------------------------------------------------------
+
 
 class ShellProtocol(asyncio.Protocol):
     """
@@ -151,7 +166,9 @@ class ShellProtocol(asyncio.Protocol):
             if result.get("ok") is True:
                 await self._send({"ok": True, "result": result.get("result")})
             else:
-                await self._send({"ok": False, "error": result.get("error", "unknown error")})
+                await self._send(
+                    {"ok": False, "error": result.get("error", "unknown error")}
+                )
             return
 
         await self._send({"ok": False, "error": f"Unknown cmd: {cmd}"})
@@ -173,15 +190,22 @@ class ShellProtocol(asyncio.Protocol):
         try:
             tool_class = self.kernel.tools[tool_name]
             if not method_name:
-                return {"ok": False, "error": f"No method specified for tool '{tool_name}'"}
+                return {
+                    "ok": False,
+                    "error": f"No method specified for tool '{tool_name}'",
+                }
             if not hasattr(tool_class, method_name):
-                return {"ok": False, "error": f"Method '{method_name}' not found on {tool_name}"}
+                return {
+                    "ok": False,
+                    "error": f"Method '{method_name}' not found on {tool_name}",
+                }
             # Instantiate with no constructor args (services are stateless/config-free)
             instance = tool_class()
             method = getattr(instance, method_name)
             result = method(**tool_args)
             # Async tool methods (async def) return coroutines — await them
             import inspect
+
             if inspect.iscoroutine(result):
                 result = await result
             # Serialize dict/list results as JSON strings for the shell consumer
@@ -189,7 +213,10 @@ class ShellProtocol(asyncio.Protocol):
                 result = json.dumps(result)
             return {"ok": True, "result": result}
         except TypeError as e:
-            return {"ok": False, "error": f"Bad args for {tool_name}.{method_name}: {e}"}
+            return {
+                "ok": False,
+                "error": f"Bad args for {tool_name}.{method_name}: {e}",
+            }
         except Exception as e:
             return {"ok": False, "error": f"{tool_name}.{method_name} failed: {e}"}
 
@@ -204,6 +231,7 @@ class ShellProtocol(asyncio.Protocol):
 # ---------------------------------------------------------------------------
 # Server
 # ---------------------------------------------------------------------------
+
 
 class SocketServer:
     """
@@ -223,7 +251,9 @@ class SocketServer:
         tcp_host: str = "127.0.0.1",
         tcp_port: int | None = None,
     ) -> None:
-        self.unix_path = unix_path or os.environ.get("BANTU_SOCK_PATH", "/tmp/bantu.sock")
+        self.unix_path = unix_path or os.environ.get(
+            "BANTU_SOCK_PATH", "/tmp/bantu.sock"
+        )
         self.tcp_host = tcp_host
         self.tcp_port = int(os.environ.get("BANTU_TCP_PORT", str(tcp_port or 18792)))
         self._kernel: Optional[Kernel] = None
@@ -290,7 +320,9 @@ class SocketServer:
         loop = asyncio.get_running_loop()
 
         for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(self.shutdown(s)))
+            loop.add_signal_handler(
+                sig, lambda s=sig: asyncio.create_task(self.shutdown(s))
+            )
 
         await self._run_unix_server()
         await self._run_tcp_server()
@@ -331,6 +363,7 @@ class SocketServer:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 async def main() -> None:
     server = SocketServer()

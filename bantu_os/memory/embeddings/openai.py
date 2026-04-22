@@ -4,6 +4,7 @@ OpenAI embeddings provider using aiohttp.
 Defaults to text-embedding-3-small for low cost. API key is taken from
 OPENAI_API_KEY or provided explicitly.
 """
+
 from __future__ import annotations
 
 import os
@@ -16,12 +17,21 @@ from .base import EmbeddingsProvider
 
 
 class OpenAIEmbeddingsProvider(EmbeddingsProvider):
-    def __init__(self, model: str = "text-embedding-3-small", api_key: str | None = None, base_url: str | None = None) -> None:
+    def __init__(
+        self,
+        model: str = "text-embedding-3-small",
+        api_key: str | None = None,
+        base_url: str | None = None,
+    ) -> None:
         self.model = model
         self.api_key = api_key or os.getenv("OPENAI_API_KEY") or ""
-        self.base_url = (base_url or os.getenv("OPENAI_BASE_URL") or "https://api.openai.com").rstrip("/")
+        self.base_url = (
+            base_url or os.getenv("OPENAI_BASE_URL") or "https://api.openai.com"
+        ).rstrip("/")
         if not self.api_key:
-            raise ValueError("OpenAI API key not provided. Set OPENAI_API_KEY or pass api_key.")
+            raise ValueError(
+                "OpenAI API key not provided. Set OPENAI_API_KEY or pass api_key."
+            )
 
     async def embed(self, texts: List[str]) -> np.ndarray:
         url = f"{self.base_url}/v1/embeddings"

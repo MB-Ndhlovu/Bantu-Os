@@ -1,7 +1,8 @@
 """
 Text interface hooks (stub).
 """
-from typing import Any
+
+
 
 class TextInterface:
     """Placeholder for future text-based integrations (e.g., chat widgets)."""

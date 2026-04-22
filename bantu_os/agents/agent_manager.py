@@ -2,6 +2,7 @@
 Bantu-OS Agent Manager
 Layer 4: Multi-agent orchestration with tool execution and message passing.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -12,7 +13,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Optional
 
-from bantu_os.config import settings
 
 
 class AgentState(Enum):
@@ -68,7 +68,12 @@ class BaseAgent(ABC):
     async def call_tool(self, tool: str, args: dict) -> Any:
         if tool not in self._tool_registry:
             raise ValueError(f"Unknown tool: {tool}")
-        tc = ToolCall(id=f"tc_{len(self._tool_calls)+1}", tool=tool, args=args, started_at=time.time())
+        tc = ToolCall(
+            id=f"tc_{len(self._tool_calls)+1}",
+            tool=tool,
+            args=args,
+            started_at=time.time(),
+        )
         self._tool_calls.append(tc)
         try:
             result = self._tool_registry[tool](**args)
@@ -95,7 +100,9 @@ class BaseAgent(ABC):
             return AgentResult(success=True, output=output, tool_calls=self._tool_calls)
         except Exception as e:
             self.state = AgentState.ERROR
-            return AgentResult(success=False, output="", tool_calls=self._tool_calls, error=str(e))
+            return AgentResult(
+                success=False, output="", tool_calls=self._tool_calls, error=str(e)
+            )
 
 
 class ShellAgent(BaseAgent):
@@ -106,7 +113,10 @@ class ShellAgent(BaseAgent):
 
     async def think(self, prompt: str) -> str:
         import subprocess
-        result = subprocess.run(prompt, shell=True, capture_output=True, text=True, timeout=30)
+
+        result = subprocess.run(
+            prompt, shell=True, capture_output=True, text=True, timeout=30
+        )
         return result.stdout or result.stderr
 
 
@@ -118,7 +128,11 @@ class TaskAgent(BaseAgent):
         self.tasks: dict[str, dict] = {}
 
     def create_task(self, task_id: str, description: str, params: dict) -> None:
-        self.tasks[task_id] = {"description": description, "params": params, "status": "pending"}
+        self.tasks[task_id] = {
+            "description": description,
+            "params": params,
+            "status": "pending",
+        }
 
     async def think(self, prompt: str) -> str:
         lines = [l.strip() for l in prompt.split("\n") if l.strip()]
@@ -134,7 +148,9 @@ class MemoryAgent(BaseAgent):
 
     def retrieve(self, query: str, top_k: int = 5) -> list[dict]:
         q = query.lower()
-        scored = [(k, sum(w in v.lower() for w in q.split())) for k, v in self._store.items()]
+        scored = [
+            (k, sum(w in v.lower() for w in q.split())) for k, v in self._store.items()
+        ]
         scored.sort(key=lambda x: x[1], reverse=True)
         return [{"id": k, "text": self._store[k]} for k, _ in scored[:top_k] if _ > 0]
 
@@ -233,7 +249,9 @@ class AgentManager:
             raise ValueError(f"Unknown agent: {agent_name}")
         return await self._sub_agents[agent_name].run(prompt)
 
-    def send_message(self, from_agent: str, to_agent: str, msg_type: str, payload: dict) -> None:
+    def send_message(
+        self, from_agent: str, to_agent: str, msg_type: str, payload: dict
+    ) -> None:
         msg = AgentMessage(
             id=f"msg_{int(time.time()*1000)}",
             from_agent=from_agent,

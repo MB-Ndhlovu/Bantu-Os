@@ -1,8 +1,7 @@
 """Unit tests for bantu_os.ai.engine."""
+
 from __future__ import annotations
 
-import json
-import tempfile
 import pytest
 
 from bantu_os.ai.engine import AIEngine, BUILTIN_HANDLERS
@@ -29,7 +28,9 @@ class FakeLLMManager:
         self._provider = FakeProvider(responses or [{"text": "no-op", "raw": {}}])
 
     async def generate(self, messages, temperature=0.7, max_tokens=None, **kwargs):
-        return await self._provider.generate(messages, temperature, max_tokens, **kwargs)
+        return await self._provider.generate(
+            messages, temperature, max_tokens, **kwargs
+        )
 
 
 # ------------------------------------------------------------------
@@ -56,7 +57,13 @@ class TestToolSchema:
             name="test.list",
             description="List files.",
             params=[
-                ToolParam(name="path", description="Directory.", type="string", required=False, default="."),
+                ToolParam(
+                    name="path",
+                    description="Directory.",
+                    type="string",
+                    required=False,
+                    default=".",
+                ),
             ],
         )
         schema = t.to_function_schema()
@@ -182,7 +189,7 @@ class TestToolCallExtraction:
                     "function": {
                         "name": "write_file",
                         "arguments": '{"path": "/tmp/out", "content": "hi"}',
-                    }
+                    },
                 }
             ]
         }

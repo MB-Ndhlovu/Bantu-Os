@@ -21,6 +21,7 @@ Supported networks:
     base      — Base (chain-id: 8453)
     bsc       — Binance Smart Chain (chain-id: 56)
 """
+
 from __future__ import annotations
 
 import os
@@ -92,7 +93,9 @@ class CryptoWalletService:
             try:
                 w3 = self._get_w3(network)
                 # sync check for health (is_connected is sync)
-                results["networks"][network] = "ok" if w3.is_connected else "disconnected"
+                results["networks"][network] = (
+                    "ok" if w3.is_connected else "disconnected"
+                )
             except Exception as e:
                 results["networks"][network] = f"error: {e}"
         return results
@@ -187,7 +190,9 @@ class CryptoWalletService:
             # Native balance
             balance_wei = await w3.eth.get_balance(address)
             chain_id = self.NETWORK_CHAIN_IDS.get(network.lower(), 1)
-            symbol = {1: "ETH", 137: "MATIC", 8453: "ETH", 56: "BNB"}.get(chain_id, "ETH")
+            symbol = {1: "ETH", 137: "MATIC", 8453: "ETH", 56: "BNB"}.get(
+                chain_id, "ETH"
+            )
             decimals = 18
             balance_human = w3.from_wei(balance_wei, "ether")
 
@@ -274,7 +279,9 @@ class CryptoWalletService:
             amount_wei = int(float(amount) * (10**decimals))
 
             nonce = await w3.eth.get_transaction_count(from_addr)
-            txn = token_contract.functions.transfer(to_addr, amount_wei).build_transaction(
+            txn = token_contract.functions.transfer(
+                to_addr, amount_wei
+            ).build_transaction(
                 {
                     "from": from_addr,
                     "nonce": nonce,

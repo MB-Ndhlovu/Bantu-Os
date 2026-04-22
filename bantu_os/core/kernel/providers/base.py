@@ -4,6 +4,7 @@ Base provider interfaces for LLM backends.
 This defines a minimal, swappable contract so you can plug in different
 providers (e.g., OpenAI, local LLaMA, etc.) without changing Kernel code.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

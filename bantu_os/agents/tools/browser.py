@@ -4,6 +4,7 @@ Browser tool (minimal).
 To avoid network dependencies in unit tests, this tool simply validates and
 returns the URL. In future, replace with a fetcher using aiohttp if desired.
 """
+
 from __future__ import annotations
 
 from urllib.parse import urlparse

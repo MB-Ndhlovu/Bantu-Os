@@ -1,6 +1,7 @@
 """
 LLM Manager - Handles loading and managing language models.
 """
+
 from __future__ import annotations
 
 from typing import Optional, Dict, Any, List
@@ -15,7 +16,7 @@ class LLMManager:
     """Manages chat LLM providers and active model selection.
 
     This class abstracts provider instantiation so callers don't depend on
-    specific vendor SDKs. Today it supports OpenAI Chat and OpenRouter; 
+    specific vendor SDKs. Today it supports OpenAI Chat and OpenRouter;
     future providers (e.g., local LLaMA) can be added without changing consumers.
     """
 
@@ -32,13 +33,17 @@ class LLMManager:
             return OpenRouterProvider(model=model, **kwargs)
         raise ValueError(f"Unsupported provider: {provider}")
 
-    def load_model(self, model_name: str, provider: str = "openai", **kwargs: Any) -> bool:
+    def load_model(
+        self, model_name: str, provider: str = "openai", **kwargs: Any
+    ) -> bool:
         """Instantiate and register a model provider under model_name.
 
         Example:
             manager.load_model("default", provider="openrouter", model="anthropic/claude-3.5-sonnet")
         """
-        instance = self._build_provider(provider=provider, model=kwargs.pop("model", model_name), **kwargs)
+        instance = self._build_provider(
+            provider=provider, model=kwargs.pop("model", model_name), **kwargs
+        )
         self.models[model_name] = instance
         # If no active model, set this one
         if self.active_model is None:

@@ -1,7 +1,7 @@
 """
 Tests for bantu_os.core.init_bridge module.
 """
-import pytest
+
 from bantu_os.core.init_bridge import InitBridge, SOCKET_PATH
 
 
@@ -28,6 +28,7 @@ class TestInitBridge:
     def test_shutdown_event_property(self):
         """shutdown_event returns the internal asyncio.Event."""
         import asyncio
+
         bridge = InitBridge()
         assert isinstance(bridge.shutdown_event, asyncio.Event)
 

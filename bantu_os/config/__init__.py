@@ -8,4 +8,4 @@ from .settings_manager import SettingsManager
 # Create a global settings instance
 settings = Settings()
 
-__all__ = ['settings', 'SettingsManager']
+__all__ = ["settings", "SettingsManager"]

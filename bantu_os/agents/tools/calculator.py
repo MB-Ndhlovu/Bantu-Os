@@ -2,6 +2,7 @@
 Calculator tool with safe expression evaluation.
 Supports +, -, *, /, %, **, parentheses. No variables or function calls.
 """
+
 from __future__ import annotations
 
 import ast
@@ -47,6 +48,18 @@ def calculate(expression: str) -> Any:
 
     # Walk the AST to ensure only safe nodes
     for node in ast.walk(tree):
-        if isinstance(node, (ast.Call, ast.Attribute, ast.Name, ast.Lambda, ast.Dict, ast.List, ast.Set, ast.comprehension)):
+        if isinstance(
+            node,
+            (
+                ast.Call,
+                ast.Attribute,
+                ast.Name,
+                ast.Lambda,
+                ast.Dict,
+                ast.List,
+                ast.Set,
+                ast.comprehension,
+            ),
+        ):
             raise ValueError("Disallowed syntax in expression")
     return _eval(tree.body)  # type: ignore[arg-type]

@@ -1,11 +1,11 @@
 """
 Tests for ServiceManager.
 """
+
 import pytest
 
 from bantu_os.core.kernel.services import (
     ServiceManager,
-    ManagedService,
     ServiceDescriptor,
     ServiceStatus,
 )
@@ -42,6 +42,7 @@ class FailingService:
 
 # ─── ServiceDescriptor ────────────────────────────────────────────────────
 
+
 class TestServiceDescriptor:
     def test_name_required(self):
         d = ServiceDescriptor(name="test", description="a test")
@@ -54,6 +55,7 @@ class TestServiceDescriptor:
 
 
 # ─── Registration ─────────────────────────────────────────────────────────
+
 
 class TestRegistration:
     def test_register_instance(self):
@@ -81,6 +83,7 @@ class TestRegistration:
 
 
 # ─── Lifecycle ────────────────────────────────────────────────────────────
+
 
 class TestStartStop:
     @pytest.mark.asyncio
@@ -142,6 +145,7 @@ class TestStartStop:
 
 # ─── Health checks ─────────────────────────────────────────────────────────
 
+
 class TestHealthChecks:
     @pytest.mark.asyncio
     async def test_health_check_returns_ok(self):
@@ -170,6 +174,7 @@ class TestHealthChecks:
 
 
 # ─── Introspection ─────────────────────────────────────────────────────────
+
 
 class TestIntrospection:
     def test_list_services_returns_summary(self):

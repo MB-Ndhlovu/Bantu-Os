@@ -8,12 +8,11 @@ Usage:
     pytest tests/test_e2e_full.py -v
     python tests/test_e2e_full.py   # standalone
 """
+
 from __future__ import annotations
 
-import asyncio
 import json
 import os
-import signal
 import socket
 import subprocess
 import sys
@@ -32,6 +31,7 @@ MAX_WAIT = 20
 # ------------------------------------------------------------------
 # Fixtures
 # ------------------------------------------------------------------
+
 
 @pytest.fixture(scope="module")
 def socket_server():
@@ -116,6 +116,7 @@ def send_json_unix(obj: dict, timeout: float = 10.0) -> dict:
 # Protocol-level tests (no AI key needed)
 # ------------------------------------------------------------------
 
+
 class TestProtocol:
     """Verify the socket protocol itself works correctly."""
 
@@ -170,6 +171,7 @@ class TestProtocol:
 # Tool tests — all 8 services via socket protocol
 # ------------------------------------------------------------------
 
+
 class TestFileService:
     """File service (Layer 4)."""
 
@@ -177,34 +179,35 @@ class TestFileService:
         path = "/tmp/e2e_bantu_test.txt"
         Path(path).write_text("bantu_os_e2e_ok")
         try:
-            resp = send_json_unix({
-                "cmd": "tool",
-                "tool": "file",
-                "method": "read",
-                "args": {"path": path}
-            })
+            resp = send_json_unix(
+                {
+                    "cmd": "tool",
+                    "tool": "file",
+                    "method": "read",
+                    "args": {"path": path},
+                }
+            )
             assert resp.get("ok") is True
             assert "bantu_os_e2e_ok" in resp.get("result", "")
         finally:
             Path(path).unlink(missing_ok=True)
 
     def test_list_directory(self, socket_server):
-        resp = send_json_unix({
-            "cmd": "tool",
-            "tool": "file",
-            "method": "list_dir",
-            "args": {"path": "/tmp"}
-        })
+        resp = send_json_unix(
+            {
+                "cmd": "tool",
+                "tool": "file",
+                "method": "list_dir",
+                "args": {"path": "/tmp"},
+            }
+        )
         assert resp.get("ok") is True
         assert "e2e" in resp.get("result", "") or isinstance(resp.get("result"), list)
 
     def test_file_tool_unknown_method(self, socket_server):
-        resp = send_json_unix({
-            "cmd": "tool",
-            "tool": "file",
-            "method": "nonexistent_method",
-            "args": {}
-        })
+        resp = send_json_unix(
+            {"cmd": "tool", "tool": "file", "method": "nonexistent_method", "args": {}}
+        )
         assert resp.get("ok") is False
 
 
@@ -212,22 +215,16 @@ class TestProcessService:
     """Process service (Layer 4)."""
 
     def test_get_system_stats(self, socket_server):
-        resp = send_json_unix({
-            "cmd": "tool",
-            "tool": "process",
-            "method": "get_system_stats",
-            "args": {}
-        })
+        resp = send_json_unix(
+            {"cmd": "tool", "tool": "process", "method": "get_system_stats", "args": {}}
+        )
         assert resp.get("ok") is True
         assert "cpu" in resp.get("result", "").lower()
 
     def test_list_processes(self, socket_server):
-        resp = send_json_unix({
-            "cmd": "tool",
-            "tool": "process",
-            "method": "list_processes",
-            "args": {}
-        })
+        resp = send_json_unix(
+            {"cmd": "tool", "tool": "process", "method": "list_processes", "args": {}}
+        )
         assert resp.get("ok") is True
         result = resp.get("result", "")
         assert "python" in result.lower() or "bantu" in result.lower()
@@ -237,21 +234,20 @@ class TestNetworkService:
     """Network service (Layer 4)."""
 
     def test_check_connectivity(self, socket_server):
-        resp = send_json_unix({
-            "cmd": "tool",
-            "tool": "network",
-            "method": "http_get",
-            "args": {"url": "https://example.com"}
-        })
+        resp = send_json_unix(
+            {
+                "cmd": "tool",
+                "tool": "network",
+                "method": "http_get",
+                "args": {"url": "https://example.com"},
+            }
+        )
         assert resp.get("ok") is True
 
     def test_get_public_ip(self, socket_server):
-        resp = send_json_unix({
-            "cmd": "tool",
-            "tool": "network",
-            "method": "get_public_ip",
-            "args": {}
-        })
+        resp = send_json_unix(
+            {"cmd": "tool", "tool": "network", "method": "get_public_ip", "args": {}}
+        )
         assert resp.get("ok") is True
 
 
@@ -259,21 +255,15 @@ class TestMessagingService:
     """Messaging service (Phase 2)."""
 
     def test_tool_dispatch(self, socket_server):
-        resp = send_json_unix({
-            "cmd": "tool",
-            "tool": "messaging",
-            "method": "health_check",
-            "args": {}
-        })
+        resp = send_json_unix(
+            {"cmd": "tool", "tool": "messaging", "method": "health_check", "args": {}}
+        )
         assert resp.get("ok") is True
 
     def test_unknown_tool(self, socket_server):
-        resp = send_json_unix({
-            "cmd": "tool",
-            "tool": "messaging",
-            "method": "send_email",
-            "args": {}
-        })
+        resp = send_json_unix(
+            {"cmd": "tool", "tool": "messaging", "method": "send_email", "args": {}}
+        )
         assert resp.get("ok") is False
 
 
@@ -281,21 +271,15 @@ class TestFintechService:
     """Fintech service (Phase 2)."""
 
     def test_tool_dispatch(self, socket_server):
-        resp = send_json_unix({
-            "cmd": "tool",
-            "tool": "fintech",
-            "method": "health_check",
-            "args": {}
-        })
+        resp = send_json_unix(
+            {"cmd": "tool", "tool": "fintech", "method": "health_check", "args": {}}
+        )
         assert resp.get("ok") is True
 
     def test_unknown_tool(self, socket_server):
-        resp = send_json_unix({
-            "cmd": "tool",
-            "tool": "fintech",
-            "method": "create_payment",
-            "args": {}
-        })
+        resp = send_json_unix(
+            {"cmd": "tool", "tool": "fintech", "method": "create_payment", "args": {}}
+        )
         assert resp.get("ok") is False
 
 
@@ -303,21 +287,15 @@ class TestCryptoService:
     """Crypto wallet service (Phase 2)."""
 
     def test_tool_dispatch(self, socket_server):
-        resp = send_json_unix({
-            "cmd": "tool",
-            "tool": "crypto",
-            "method": "health_check",
-            "args": {}
-        })
+        resp = send_json_unix(
+            {"cmd": "tool", "tool": "crypto", "method": "health_check", "args": {}}
+        )
         assert resp.get("ok") is True
 
     def test_unknown_tool(self, socket_server):
-        resp = send_json_unix({
-            "cmd": "tool",
-            "tool": "crypto",
-            "method": "send",
-            "args": {}
-        })
+        resp = send_json_unix(
+            {"cmd": "tool", "tool": "crypto", "method": "send", "args": {}}
+        )
         assert resp.get("ok") is False
 
 
@@ -325,24 +303,19 @@ class TestIoTService:
     """IoT service (Phase 3)."""
 
     def test_tool_dispatch(self, socket_server):
-        resp = send_json_unix({
-            "cmd": "tool",
-            "tool": "iot",
-            "method": "health_check",
-            "args": {}
-        })
+        resp = send_json_unix(
+            {"cmd": "tool", "tool": "iot", "method": "health_check", "args": {}}
+        )
         assert resp.get("ok") is True
 
     def test_list_devices(self, socket_server):
-        resp = send_json_unix({
-            "cmd": "tool",
-            "tool": "iot",
-            "method": "iot_list_devices",
-            "args": {}
-        })
+        resp = send_json_unix(
+            {"cmd": "tool", "tool": "iot", "method": "iot_list_devices", "args": {}}
+        )
         assert resp.get("ok") is True
         # Result is a dict serialized to JSON string — parse it
         import json
+
         result = json.loads(resp.get("result", "{}"))
         assert isinstance(result, dict)
         assert "devices" in result
@@ -353,36 +326,38 @@ class TestHardwareService:
     """Hardware service (Phase 3)."""
 
     def test_tool_dispatch(self, socket_server):
-        resp = send_json_unix({
-            "cmd": "tool",
-            "tool": "hardware",
-            "method": "health_check",
-            "args": {}
-        })
+        resp = send_json_unix(
+            {"cmd": "tool", "tool": "hardware", "method": "health_check", "args": {}}
+        )
         assert resp.get("ok") is True
 
     def test_cpu_stats(self, socket_server):
-        resp = send_json_unix({
-            "cmd": "tool",
-            "tool": "hardware",
-            "method": "hardware_cpu_stats",
-            "args": {}
-        })
+        resp = send_json_unix(
+            {
+                "cmd": "tool",
+                "tool": "hardware",
+                "method": "hardware_cpu_stats",
+                "args": {},
+            }
+        )
         assert resp.get("ok") is True
 
     def test_memory_stats(self, socket_server):
-        resp = send_json_unix({
-            "cmd": "tool",
-            "tool": "hardware",
-            "method": "hardware_memory_stats",
-            "args": {}
-        })
+        resp = send_json_unix(
+            {
+                "cmd": "tool",
+                "tool": "hardware",
+                "method": "hardware_memory_stats",
+                "args": {},
+            }
+        )
         assert resp.get("ok") is True
 
 
 # ------------------------------------------------------------------
 # Rust shell binary integration
 # ------------------------------------------------------------------
+
 
 class TestRustShellBinary:
     """Verify the actual Rust shell binary can connect and communicate."""
@@ -430,8 +405,10 @@ class TestRustShellBinary:
 # Main (standalone)
 # ------------------------------------------------------------------
 
+
 def main():
     import pytest as _pytest
+
     sys.exit(_pytest.main([__file__, "-v", "--tb=short"]))
 
 

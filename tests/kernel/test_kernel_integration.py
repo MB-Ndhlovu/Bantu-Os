@@ -6,10 +6,8 @@ Tests that:
 - Tools are callable via use_tool / use_tool_async
 - File, process, and network services return correct results
 """
+
 import pytest
-import tempfile
-import os
-from pathlib import Path
 
 from bantu_os.core.kernel.kernel import Kernel
 from bantu_os.services.file_service import FileService
@@ -20,7 +18,7 @@ from bantu_os.services.network_service import NetworkService
 @pytest.fixture
 def kernel_with_services():
     """Kernel with all three services registered.
-    
+
     Services are registered as classes so use_tool(name, **kwargs)
     instantiates them with the given kwargs on each call.
     """

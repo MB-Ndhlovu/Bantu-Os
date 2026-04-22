@@ -25,20 +25,30 @@ class KnowledgeGraph:
         }
         return node_id
 
-    def add_edge(self, from_id: str, to_id: str, relation: str, properties: Optional[dict[str, Any]] = None) -> Optional[str]:
+    def add_edge(
+        self,
+        from_id: str,
+        to_id: str,
+        relation: str,
+        properties: Optional[dict[str, Any]] = None,
+    ) -> Optional[str]:
         if from_id not in self.nodes or to_id not in self.nodes:
             return None
         edge_id = str(uuid.uuid4())[:8]
-        self.edges.append({
-            "id": edge_id,
-            "from": from_id,
-            "to": to_id,
-            "relation": relation,
-            "properties": properties or {},
-        })
+        self.edges.append(
+            {
+                "id": edge_id,
+                "from": from_id,
+                "to": to_id,
+                "relation": relation,
+                "properties": properties or {},
+            }
+        )
         return edge_id
 
-    def query(self, label: Optional[str] = None, relation: Optional[str] = None) -> list[dict[str, Any]]:
+    def query(
+        self, label: Optional[str] = None, relation: Optional[str] = None
+    ) -> list[dict[str, Any]]:
         results = []
         for node in self.nodes.values():
             if label and node["label"] != label:
@@ -78,14 +88,17 @@ class KnowledgeGraph:
 # Default instance
 _default_graph: Optional[KnowledgeGraph] = None
 
+
 def get_graph() -> KnowledgeGraph:
     global _default_graph
     if _default_graph is None:
         _default_graph = KnowledgeGraph()
     return _default_graph
 
+
 def add_node(label: str, properties: Optional[dict[str, Any]] = None) -> str:
     return get_graph().add_node(label, properties)
+
 
 def add_edge(from_label: str, to_label: str, relation: str) -> Optional[str]:
     g = get_graph()
@@ -94,6 +107,7 @@ def add_edge(from_label: str, to_label: str, relation: str) -> Optional[str]:
     if not from_nodes or not to_nodes:
         return None
     return g.add_edge(from_nodes[0]["id"], to_nodes[0]["id"], relation)
+
 
 def query(label: Optional[str] = None) -> list[dict[str, Any]]:
     return get_graph().query(label=label)

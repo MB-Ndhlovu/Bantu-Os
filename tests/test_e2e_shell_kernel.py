@@ -5,12 +5,11 @@ Tests the full boot loop described in SPEC.md Phase 1.
 
 Usage: python tests/test_e2e_shell_kernel.py
 """
+
 from __future__ import annotations
 
-import asyncio
 import json
 import os
-import signal
 import socket
 import subprocess
 import sys
@@ -22,7 +21,9 @@ SOCKET_PATH = "/tmp/bantu.sock"
 TCP_PORT = 18792
 KERNEL_LOG = "/tmp/bantu-kernel-e2e.log"
 MAX_WAIT = 15
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY") or os.environ.get(
+    "OPENAI_API_KEY"
+)
 
 
 def can_run_ai_tests() -> bool:
@@ -141,12 +142,15 @@ def run_tests():
 
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect(SOCKET_PATH)
-        resp = send_json(sock, {
-            "cmd": "tool",
-            "tool": "file",
-            "method": "read",
-            "args": {"path": test_file}
-        })
+        resp = send_json(
+            sock,
+            {
+                "cmd": "tool",
+                "tool": "file",
+                "method": "read",
+                "args": {"path": test_file},
+            },
+        )
         sock.close()
         os.unlink(test_file)
         assert resp.get("ok") is True, f"file read failed: {resp}"
@@ -163,7 +167,7 @@ def run_tests():
         sock.close()
         # With no real API key, kernel returns a stub — we just verify protocol works
         assert "ok" in resp, f"AI command failed: {resp}"
-        return f"AI command (stubbed)"
+        return "AI command (stubbed)"
 
     # -------------------------------------------------------------------------
     # Run all tests
@@ -191,30 +195,30 @@ def main():
     print("=" * 60)
 
     kill_existing()
-    print(f"\n[boot] Starting Python kernel server…")
+    print("\n[boot] Starting Python kernel server…")
     proc = start_kernel()
 
     try:
         print(f"[boot] Waiting for Unix socket at {SOCKET_PATH}…")
         if not wait_for_socket(SOCKET_PATH):
             print(f"[FAIL] Unix socket did not appear within {MAX_WAIT}s")
-            print(f"[boot] Kernel log:")
+            print("[boot] Kernel log:")
             with open(KERNEL_LOG) as f:
                 print(f.read()[:500])
             sys.exit(1)
-        print(f"[boot] Unix socket ready")
+        print("[boot] Unix socket ready")
 
         print(f"[boot] Waiting for TCP server on port {TCP_PORT}…")
         if not wait_for_server_ready(TCP_PORT):
             print(f"[FAIL] TCP server did not respond within {MAX_WAIT}s")
             sys.exit(1)
-        print(f"[boot] TCP server ready")
+        print("[boot] TCP server ready")
 
-        print(f"\n[test] Running protocol tests…")
+        print("\n[test] Running protocol tests…")
         results = run_tests()
 
         print(f"\n{'='*60}")
-        print(f"RESULTS")
+        print("RESULTS")
         print(f"{'='*60}")
         passed = 0
         for name, status, detail in results:
@@ -226,10 +230,10 @@ def main():
         print(f"\n{passed}/{len(results)} tests passed")
 
         if passed == len(results):
-            print(f"\n✅ End-to-end test PASSED — shell and kernel are connected.")
+            print("\n✅ End-to-end test PASSED — shell and kernel are connected.")
             sys.exit(0)
         else:
-            print(f"\n❌ Some tests failed.")
+            print("\n❌ Some tests failed.")
             sys.exit(1)
 
     finally:

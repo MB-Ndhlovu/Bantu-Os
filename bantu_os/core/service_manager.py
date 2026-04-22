@@ -9,14 +9,14 @@ Usage:
     # or
     ./start.sh   (already calls this via the kernel server)
 """
+
 from __future__ import annotations
 
 import asyncio
-import os
 import signal
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -27,7 +27,6 @@ import psutil
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from bantu_os.core.kernel import Kernel
-from bantu_os.core.socket_server import make_kernel
 from bantu_os.services.file_service import FileService
 from bantu_os.services.process_service import ProcessService
 from bantu_os.services.network_service import NetworkService
@@ -37,6 +36,7 @@ try:
     from bantu_os.services.messaging import MessagingService
     from bantu_os.services.fintech import FintechService
     from bantu_os.services.crypto import CryptoWalletService
+
     _PHASE2_AVAILABLE = True
 except ImportError:
     _PHASE2_AVAILABLE = False
@@ -44,6 +44,7 @@ except ImportError:
 # ─── Phase 3 ───────────────────────────────────────────────────────────────
 try:
     from bantu_os.services.iot import IoTService
+
     _IOT_AVAILABLE = True
 except ImportError:
     _IOT_AVAILABLE = False
@@ -113,9 +114,16 @@ class ServiceManager:
         handle = ServiceHandle(name=name, state=ServiceState.STARTING)
         self._services[name] = handle
 
-        script = str(Path(__file__).resolve().parents[3] / "bantu_os" / "core" / "socket_server.py")
+        script = str(
+            Path(__file__).resolve().parents[3]
+            / "bantu_os"
+            / "core"
+            / "socket_server.py"
+        )
         proc = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", "bantu_os.core.socket_server",
+            sys.executable,
+            "-m",
+            "bantu_os.core.socket_server",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -175,7 +183,9 @@ class ServiceManager:
             "service_manager": "running",
             "kernel": kernel_status,
             "kernel_pid": self._kernel_handle.pid if self._kernel_handle else None,
-            "kernel_healthy": self._kernel_handle.healthy if self._kernel_handle else False,
+            "kernel_healthy": (
+                self._kernel_handle.healthy if self._kernel_handle else False
+            ),
             "phase2_available": _PHASE2_AVAILABLE,
             "iot_available": _IOT_AVAILABLE,
         }
@@ -183,13 +193,16 @@ class ServiceManager:
 
 # ─── CLI ─────────────────────────────────────────────────────────────────────
 
+
 async def main() -> None:
     print("Bantu-OS Service Manager v0.3.0")
     manager = ServiceManager()
 
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(manager.stop_all()))
+        loop.add_signal_handler(
+            sig, lambda s=sig: asyncio.create_task(manager.stop_all())
+        )
 
     await manager.start_all()
     print("[service_manager] status:", manager.status())

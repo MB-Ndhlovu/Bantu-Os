@@ -19,6 +19,7 @@ Env vars required:
     TWILIO_FROM_NUMBER   Twilio phone number (E.164, e.g. +1234567890)
     TELEGRAM_BOT_TOKEN   Telegram bot token from @BotFather
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -57,7 +58,11 @@ class MessagingService(ServiceBase):
             "status": "ok",
             "service": self.name,
             "email_configured": bool(self._smtp_username and self._smtp_password),
-            "sms_configured": bool(self._twilio_account_sid and self._twilio_auth_token and self._twilio_from),
+            "sms_configured": bool(
+                self._twilio_account_sid
+                and self._twilio_auth_token
+                and self._twilio_from
+            ),
             "telegram_configured": bool(self._telegram_token),
         }
 
@@ -96,8 +101,7 @@ class MessagingService(ServiceBase):
         """
         if not self._smtp_username or not self._smtp_password:
             raise EnvironmentError(
-                "SMTP_USERNAME / SMTP_PASSWORD not set. "
-                "Cannot send email."
+                "SMTP_USERNAME / SMTP_PASSWORD not set. " "Cannot send email."
             )
 
         from_addr = from_addr or self._smtp_default_from or self._smtp_username
@@ -138,7 +142,9 @@ class MessagingService(ServiceBase):
 
         Docs: https://www.twilio.com/docs/sms/api/message-resource
         """
-        if not all([self._twilio_account_sid, self._twilio_auth_token, self._twilio_from]):
+        if not all(
+            [self._twilio_account_sid, self._twilio_auth_token, self._twilio_from]
+        ):
             raise EnvironmentError(
                 "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and "
                 "TWILIO_FROM_NUMBER must all be set to send SMS."
@@ -153,9 +159,7 @@ class MessagingService(ServiceBase):
             "To": to,
             "Body": body,
         }
-        auth = aiohttp.BasicAuth(
-            self._twilio_account_sid, self._twilio_auth_token
-        )
+        auth = aiohttp.BasicAuth(self._twilio_account_sid, self._twilio_auth_token)
 
         async with aiohttp.ClientSession() as session:
             async with session.post(url, data=payload, auth=auth) as resp:
@@ -201,10 +205,7 @@ class MessagingService(ServiceBase):
         if len(text) > 4096:
             text = text[:4093] + "..."
 
-        url = (
-            f"https://api.telegram.org/bot{self._telegram_token}/"
-            f"sendMessage"
-        )
+        url = f"https://api.telegram.org/bot{self._telegram_token}/" f"sendMessage"
         payload = {
             "chat_id": chat_id,
             "text": text,
@@ -228,10 +229,7 @@ class MessagingService(ServiceBase):
 
         This is the bot's DM chat — we use it when the user passes 'me'.
         """
-        url = (
-            f"https://api.telegram.org/bot{self._telegram_token}/"
-            f"getUpdates"
-        )
+        url = f"https://api.telegram.org/bot{self._telegram_token}/" f"getUpdates"
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
                 data = await resp.json()

@@ -1,7 +1,8 @@
 """
 Voice interface hooks (stub).
 """
-from typing import Any
+
+
 
 class VoiceInterface:
     """Placeholder for future voice-based interactions."""

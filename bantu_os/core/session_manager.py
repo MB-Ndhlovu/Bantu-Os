@@ -15,6 +15,7 @@ Usage:
     session = await mgr.create_session("alice")
     result = await session.run("list my files")
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -27,22 +28,24 @@ from ..memory import Memory
 from ..memory.vector_db import VectorDB
 from ..memory.knowledge_graph import KnowledgeGraph
 
-
 # ─── Exceptions ───────────────────────────────────────────────────────────────
 
 
 class SessionError(Exception):
     """Base exception for session errors."""
+
     pass
 
 
 class SessionNotFoundError(SessionError):
     """Raised when a session ID does not exist."""
+
     pass
 
 
 class BudgetExceededError(SessionError):
     """Raised when a user's token budget is exhausted."""
+
     pass
 
 
@@ -239,15 +242,20 @@ class UserSession:
                 if results:
                     snippets = [r.get("text", "") for r in results if r.get("text")]
                     if snippets:
-                        memory_context.append({
-                            "role": "system",
-                            "content": "Relevant context from memory:\n" + "\n".join(f"- {s}" for s in snippets),
-                        })
+                        memory_context.append(
+                            {
+                                "role": "system",
+                                "content": "Relevant context from memory:\n"
+                                + "\n".join(f"- {s}" for s in snippets),
+                            }
+                        )
             except Exception:
                 pass
 
         try:
-            result = await self.kernel.process_input(text, context=memory_context or None)
+            result = await self.kernel.process_input(
+                text, context=memory_context or None
+            )
             tokens_used = (len(text) + len(result)) // 4
             try:
                 self.budget.record(tokens_used)

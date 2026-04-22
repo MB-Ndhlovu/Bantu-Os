@@ -1,6 +1,7 @@
 """
 Tests for memory/knowledge_graph.py — KnowledgeGraph, KGNode, KGEdge.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -21,7 +22,13 @@ class TestKGNode:
 
 class TestKGEdge:
     def test_dataclass_fields(self):
-        edge = KGEdge(id="e1", from_id="a", to_id="b", relation="knows", properties={"since": 2020})
+        edge = KGEdge(
+            id="e1",
+            from_id="a",
+            to_id="b",
+            relation="knows",
+            properties={"since": 2020},
+        )
         assert edge.from_id == "a"
         assert edge.to_id == "b"
         assert edge.relation == "knows"

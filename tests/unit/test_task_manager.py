@@ -1,12 +1,12 @@
 """
 Tests for task_manager — task creation, lifecycle, and queue management.
 """
+
 from __future__ import annotations
 
 import pytest
 from bantu_os.agents.task_manager import (
     TaskManager,
-    Task,
     TaskStatus,
 )
 

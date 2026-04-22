@@ -1,6 +1,7 @@
 """
 Tests for bantu_os.core.session_manager module.
 """
+
 import pytest
 import asyncio
 

@@ -1,6 +1,7 @@
 """
 IoTService tool schemas — Phase 3.
 """
+
 from __future__ import annotations
 
 TOOL_SCHEMAS = {
@@ -77,8 +78,14 @@ TOOL_SCHEMAS = {
         "parameters": {
             "type": "object",
             "properties": {
-                "device_id": {"type": "string", "description": "Unique device identifier."},
-                "name": {"type": "string", "description": "Human-readable device name."},
+                "device_id": {
+                    "type": "string",
+                    "description": "Unique device identifier.",
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Human-readable device name.",
+                },
                 "device_type": {
                     "type": "string",
                     "description": "Device type (e.g. temperature_sensor, motion_detector).",
@@ -93,14 +100,22 @@ TOOL_SCHEMAS = {
         },
         "returns": {
             "type": "object",
-            "properties": {"registered": {"type": "boolean"}, "device_id": {"type": "string"}},
+            "properties": {
+                "registered": {"type": "boolean"},
+                "device_id": {"type": "string"},
+            },
         },
     },
     "iot_get_device_status": {
         "description": "Get the current status of a registered device.",
         "parameters": {
             "type": "object",
-            "properties": {"device_id": {"type": "string", "description": "Unique device identifier."}},
+            "properties": {
+                "device_id": {
+                    "type": "string",
+                    "description": "Unique device identifier.",
+                }
+            },
             "required": ["device_id"],
         },
         "returns": {"type": "object"},
@@ -111,7 +126,10 @@ TOOL_SCHEMAS = {
             "type": "object",
             "properties": {
                 "device_id": {"type": "string"},
-                "sensor_type": {"type": "string", "description": "e.g. temperature, humidity"},
+                "sensor_type": {
+                    "type": "string",
+                    "description": "e.g. temperature, humidity",
+                },
                 "value": {"type": "number"},
                 "unit": {"type": "string", "description": "e.g. °C, %, hPa"},
             },
@@ -119,7 +137,11 @@ TOOL_SCHEMAS = {
         },
         "returns": {
             "type": "object",
-            "properties": {"stored": {"type": "boolean"}, "ts": {"type": "number"}, "key": {"type": "string"}},
+            "properties": {
+                "stored": {"type": "boolean"},
+                "ts": {"type": "number"},
+                "key": {"type": "string"},
+            },
         },
     },
 }

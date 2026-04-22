@@ -14,10 +14,7 @@ class VectorDB:
         self.vectors: List[Dict[str, Any]] = []
 
     def add(
-        self,
-        embedding: List[float],
-        text: str,
-        metadata: Dict[str, Any] = None
+        self, embedding: List[float], text: str, metadata: Dict[str, Any] = None
     ) -> str:
         """Add a vector record to the store."""
         if len(embedding) != self.dim:
@@ -33,7 +30,9 @@ class VectorDB:
         self.vectors.append(record)
         return record_id
 
-    def query(self, query_embedding: List[float], top_k: int = 5) -> List[Dict[str, Any]]:
+    def query(
+        self, query_embedding: List[float], top_k: int = 5
+    ) -> List[Dict[str, Any]]:
         """Search for similar vectors using cosine similarity."""
         if len(query_embedding) != self.dim:
             raise ValueError(f"Query embedding dimension must be {self.dim}")

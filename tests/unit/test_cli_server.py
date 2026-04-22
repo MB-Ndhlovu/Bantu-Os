@@ -1,12 +1,10 @@
 """
 Tests for cli/server.py — CLIServer
 """
-import os
+
 import json
 import socket
 import pytest
-import threading
-import time
 
 from bantu_os.cli.server import CLIServer
 

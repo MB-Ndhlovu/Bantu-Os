@@ -7,6 +7,7 @@ Env vars required:
   CRYPTO_WALLET_PRIVATE_KEY     — Wallet private key (encrypted at rest via secrets.py)
   CRYPTO_WALLET_ADDRESS        — Default wallet address (EOA)
 """
+
 from __future__ import annotations
 
 TOOL_SCHEMAS = {

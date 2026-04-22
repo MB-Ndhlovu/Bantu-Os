@@ -14,24 +14,25 @@ Tests cover:
 - error handling for missing / failing tools
 - graceful shutdown
 """
+
 import asyncio
 import json
 import os
 import tempfile
-from pathlib import Path
-from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from bantu_os.core.socket_server import SocketServer, ShellProtocol
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-async def send_json(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, payload: dict) -> dict:
+
+async def send_json(
+    reader: asyncio.StreamReader, writer: asyncio.StreamWriter, payload: dict
+) -> dict:
     """Send one JSON line, read one JSON line, return parsed response."""
     data = json.dumps(payload).encode("utf-8") + b"\n"
     writer.write(data)
@@ -49,6 +50,7 @@ async def connect(path: str) -> tuple[asyncio.StreamReader, asyncio.StreamWriter
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def socket_path():
@@ -94,6 +96,7 @@ async def client(server, socket_path):
 # ---------------------------------------------------------------------------
 # Protocol handler unit tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_ping_via_protocol():
@@ -183,6 +186,7 @@ async def test_multiline_payload_via_protocol():
 # ---------------------------------------------------------------------------
 # Socket-level integration tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_ping(server, socket_path):
@@ -281,11 +285,15 @@ async def test_tool_cmd_unknown_tool(server, socket_path):
     """Server returns error for unknown tool name."""
     reader, writer = await connect(socket_path)
     try:
-        resp = await send_json(reader, writer, {
-            "cmd": "tool",
-            "tool": "nonexistent_tool",
-            "args": {},
-        })
+        resp = await send_json(
+            reader,
+            writer,
+            {
+                "cmd": "tool",
+                "tool": "nonexistent_tool",
+                "args": {},
+            },
+        )
         assert resp["ok"] is False
         assert "Tool not found" in resp["error"]
     finally:
@@ -302,12 +310,16 @@ async def test_tool_cmd_file_service_read(tmp_path, server, socket_path):
 
     reader, writer = await connect(socket_path)
     try:
-        resp = await send_json(reader, writer, {
-            "cmd": "tool",
-            "tool": "file",
-            "method": "read",
-            "args": {"path": str(test_file)},
-        })
+        resp = await send_json(
+            reader,
+            writer,
+            {
+                "cmd": "tool",
+                "tool": "file",
+                "method": "read",
+                "args": {"path": str(test_file)},
+            },
+        )
         assert resp["ok"] is True
         assert "hello from socket server test" in resp["result"]
     finally:
@@ -323,12 +335,16 @@ async def test_tool_cmd_file_service_list_dir(tmp_path, server, socket_path):
 
     reader, writer = await connect(socket_path)
     try:
-        resp = await send_json(reader, writer, {
-            "cmd": "tool",
-            "tool": "file",
-            "method": "list_dir",
-            "args": {"path": str(tmp_path), "recursive": False},
-        })
+        resp = await send_json(
+            reader,
+            writer,
+            {
+                "cmd": "tool",
+                "tool": "file",
+                "method": "list_dir",
+                "args": {"path": str(tmp_path), "recursive": False},
+            },
+        )
         assert resp["ok"] is True
         # Result is a JSON string serialisation of the list
         parsed = json.loads(resp["result"])
@@ -345,12 +361,16 @@ async def test_tool_cmd_process_service_stats(server, socket_path):
     """Server routes 'tool' cmd to ProcessService.get_system_stats."""
     reader, writer = await connect(socket_path)
     try:
-        resp = await send_json(reader, writer, {
-            "cmd": "tool",
-            "tool": "process",
-            "method": "get_system_stats",
-            "args": {},
-        })
+        resp = await send_json(
+            reader,
+            writer,
+            {
+                "cmd": "tool",
+                "tool": "process",
+                "method": "get_system_stats",
+                "args": {},
+            },
+        )
         assert resp["ok"] is True
         parsed = json.loads(resp["result"])
         assert "cpu" in parsed
@@ -365,12 +385,16 @@ async def test_tool_cmd_network_service_dns(server, socket_path):
     """Server routes 'tool' cmd to NetworkService.dns_lookup."""
     reader, writer = await connect(socket_path)
     try:
-        resp = await send_json(reader, writer, {
-            "cmd": "tool",
-            "tool": "network",
-            "method": "dns_lookup",
-            "args": {"hostname": "localhost"},
-        })
+        resp = await send_json(
+            reader,
+            writer,
+            {
+                "cmd": "tool",
+                "tool": "network",
+                "method": "dns_lookup",
+                "args": {"hostname": "localhost"},
+            },
+        )
         assert resp["ok"] is True
         parsed = json.loads(resp["result"])
         assert parsed.get("resolved") is True

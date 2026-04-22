@@ -10,11 +10,11 @@ from .embeddings.base import EmbeddingsProvider
 from .embeddings.openai import OpenAIEmbeddingsProvider
 
 __all__ = [
-    'VectorDB',
-    'KnowledgeGraph',
-    'Memory',
-    'VectorStore',
-    'VectorDBStore',
-    'EmbeddingsProvider',
-    'OpenAIEmbeddingsProvider',
+    "VectorDB",
+    "KnowledgeGraph",
+    "Memory",
+    "VectorStore",
+    "VectorDBStore",
+    "EmbeddingsProvider",
+    "OpenAIEmbeddingsProvider",
 ]

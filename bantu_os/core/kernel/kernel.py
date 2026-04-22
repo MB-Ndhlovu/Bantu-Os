@@ -11,6 +11,7 @@ Public methods:
 - use_tool(name, **kwargs)
 - agentic_loop(text, ...) — full agentic loop with tool call detection
 """
+
 from __future__ import annotations
 
 import json
@@ -24,7 +25,7 @@ from ...memory import Memory, EmbeddingsProvider, OpenAIEmbeddingsProvider
 
 # Compiled once at module load — matches [TOOL_CALL] name args:{...} [/TOOL_CALL]
 _TOOL_CALL_RE = re.compile(
-    r'\[TOOL_CALL\]\s*(\w+)\s+args:(\{[^}]*\})\s*\[/TOOL_CALL\]',
+    r"\[TOOL_CALL\]\s*(\w+)\s+args:(\{[^}]*\})\s*\[/TOOL_CALL\]",
     re.DOTALL,
 )
 
@@ -73,9 +74,15 @@ class Kernel:
         if self.memory and memory_embeddings_provider is not None:
             self.memory.set_embeddings_provider(memory_embeddings_provider)
         # If a Memory instance was provided but no embeddings assigned, try OpenAI if key exists
-        if self.memory and self.memory.embeddings is None and (api_key or settings.LLM_API_KEY):
+        if (
+            self.memory
+            and self.memory.embeddings is None
+            and (api_key or settings.LLM_API_KEY)
+        ):
             try:
-                provider = OpenAIEmbeddingsProvider(api_key=api_key or settings.LLM_API_KEY)
+                provider = OpenAIEmbeddingsProvider(
+                    api_key=api_key or settings.LLM_API_KEY
+                )
                 self.memory.set_embeddings_provider(provider)
             except Exception:
                 # Silently skip if embedding provider cannot be initialized
@@ -110,7 +117,9 @@ class Kernel:
         # Retrieve relevant memory (if configured) and inject as an additional system message
         if self.memory and self.memory.embeddings is not None:
             try:
-                results = await self.memory.retrieve_memory(query=text, top_k=self.memory_top_k)
+                results = await self.memory.retrieve_memory(
+                    query=text, top_k=self.memory_top_k
+                )
                 if results:
                     mem_snippets = []
                     for r in results:
@@ -119,10 +128,12 @@ class Kernel:
                             mem_snippets.append(f"- {snippet}")
                     if mem_snippets:
                         mem_block = "\n".join(mem_snippets)
-                        messages.append({
-                            "role": "system",
-                            "content": f"Relevant memory items (most similar first):\n{mem_block}",
-                        })
+                        messages.append(
+                            {
+                                "role": "system",
+                                "content": f"Relevant memory items (most similar first):\n{mem_block}",
+                            }
+                        )
             except Exception:
                 # If memory retrieval fails, continue without it
                 pass
@@ -190,9 +201,7 @@ class Kernel:
             return await result
         return result
 
-    async def run_tool_calls(
-        self, calls: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    async def run_tool_calls(self, calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Execute a list of tool calls and return outcomes.
 
         ``calls`` is a list of dicts with required key ``name`` and
@@ -290,10 +299,9 @@ class Kernel:
                 for o in outcomes
             )
             messages.append({"role": "assistant", "content": output_text})
-            messages.append({
-                "role": "system",
-                "content": f"Tool results:\n{tool_results_text}"
-            })
+            messages.append(
+                {"role": "system", "content": f"Tool results:\n{tool_results_text}"}
+            )
 
         # Max iterations reached — return last output
         return output_text

@@ -12,12 +12,13 @@ Public API (kept simple and swappable):
 Helpers:
 - store_text(text: str, metadata: dict | None) -> str  # convenience, embeds internally
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 import numpy as np
 
-from .vector_store import VectorStore, VectorDBStore, ChromaVectorStore
+from .vector_store import VectorStore, ChromaVectorStore
 from .embeddings.base import EmbeddingsProvider
 
 
@@ -33,19 +34,30 @@ class Memory:
         self.store = store or ChromaVectorStore(dim=dim)
         self.embeddings = embeddings  # optional: caller may provide later
         self.dim = dim
-        
+
     def set_embeddings_provider(self, provider: EmbeddingsProvider) -> None:
         self.embeddings = provider
 
-    def store_memory(self, query: str, embedding: np.ndarray, metadata: Optional[Dict[str, Any]] = None) -> str:
+    def store_memory(
+        self,
+        query: str,
+        embedding: np.ndarray,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """Store a memory vector with associated text and metadata.
         'query' is saved as the document text for later recall/explanation.
         """
         if embedding.shape[-1] != self.dim:
-            raise ValueError(f"Embedding dim {embedding.shape[-1]} != expected {self.dim}")
-        return self.store.add(vector=embedding.astype(np.float32), metadata=metadata or {}, text=query)
+            raise ValueError(
+                f"Embedding dim {embedding.shape[-1]} != expected {self.dim}"
+            )
+        return self.store.add(
+            vector=embedding.astype(np.float32), metadata=metadata or {}, text=query
+        )
 
-    async def store_text(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+    async def store_text(
+        self, text: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Convenience: embed and store text."""
         if not self.embeddings:
             raise RuntimeError("Embeddings provider not configured for Memory")

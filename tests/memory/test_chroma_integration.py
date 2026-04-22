@@ -1,8 +1,7 @@
 import pytest
 import numpy as np
-from pathlib import Path
 
-from bantu_os.memory.vector_store import ChromaVectorStore, VectorDBStore
+from bantu_os.memory.vector_store import ChromaVectorStore
 from bantu_os.memory.memory import Memory
 
 
@@ -46,7 +45,9 @@ class TestChromaVectorStore:
     def test_add_and_search(self, chroma_store):
         vec = np.zeros(128, dtype=np.float32)
         vec[0] = 1.0
-        uid = chroma_store.add(vector=vec, text="hello world", metadata={"type": "greeting"})
+        uid = chroma_store.add(
+            vector=vec, text="hello world", metadata={"type": "greeting"}
+        )
         assert uid
         results = chroma_store.search(query_vector=vec, top_k=5)
         assert len(results) >= 1
@@ -54,7 +55,13 @@ class TestChromaVectorStore:
 
     def test_add_multiple_and_search_topk(self, chroma_store):
         vectors = [np.zeros(128, dtype=np.float32) for _ in range(5)]
-        texts = ["apple fruit", "banana fruit", "carrot vegetable", "date fruit", "egg food"]
+        texts = [
+            "apple fruit",
+            "banana fruit",
+            "carrot vegetable",
+            "date fruit",
+            "egg food",
+        ]
         for i, (v, t) in enumerate(zip(vectors, texts)):
             v[i] = 1.0
             chroma_store.add(vector=v, text=t, metadata={"idx": i})
@@ -89,6 +96,7 @@ class TestChromaVectorStore:
 
     def test_fallback_when_chroma_unavailable(self, tmp_path, monkeypatch):
         import bantu_os.memory.vector_store as vs
+
         monkeypatch.setattr(vs, "HAS_CHROMADB", False)
         store = ChromaVectorStore(path=str(tmp_path / "chroma"), dim=128)
         assert store._coll is None
@@ -98,15 +106,21 @@ class TestChromaVectorStore:
 class TestMemoryWithChroma:
     def test_store_and_retrieve(self, memory):
         id1 = memory.store_memory("I like chess", np.ones(128, dtype=np.float32) * 0.5)
-        id2 = memory.store_memory("chess is a strategy game", np.ones(128, dtype=np.float32) * 0.5)
-        results = memory.store.search(query_vector=np.ones(128, dtype=np.float32) * 0.5, top_k=2)
+        id2 = memory.store_memory(
+            "chess is a strategy game", np.ones(128, dtype=np.float32) * 0.5
+        )
+        results = memory.store.search(
+            query_vector=np.ones(128, dtype=np.float32) * 0.5, top_k=2
+        )
         assert len(results) >= 1
 
     @pytest.mark.asyncio
     async def test_store_text_and_retrieve(self, memory):
         uid = await memory.store_text("The capital of France is Paris")
         assert uid
-        results = await memory.retrieve_memory("What is the capital of France?", top_k=1)
+        results = await memory.retrieve_memory(
+            "What is the capital of France?", top_k=1
+        )
         assert len(results) >= 1
 
     @pytest.mark.asyncio

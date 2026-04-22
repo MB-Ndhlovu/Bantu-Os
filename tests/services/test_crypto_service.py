@@ -1,6 +1,7 @@
 """
 Tests for CryptoWalletService.
 """
+
 import pytest
 
 pytestmark = pytest.mark.asyncio

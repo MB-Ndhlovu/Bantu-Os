@@ -4,6 +4,7 @@ OpenRouter provider implementation using aiohttp.
 OpenRouter provides unified access to many LLM providers (Anthropic, Meta, Google, etc.)
 via an OpenAI-compatible API.
 """
+
 from __future__ import annotations
 
 import os
@@ -33,9 +34,7 @@ class OpenRouterProvider(LLMProvider):
     def __init__(self, model: str, **kwargs: Any) -> None:
         super().__init__(model, **kwargs)
         self.api_key: str = (
-            kwargs.get("api_key")
-            or os.getenv("OPENROUTER_API_KEY")
-            or ""
+            kwargs.get("api_key") or os.getenv("OPENROUTER_API_KEY") or ""
         )
         self.base_url: str = kwargs.get("base_url") or os.getenv(
             "OPENROUTER_BASE_URL", self.DEFAULT_BASE_URL
@@ -73,5 +72,7 @@ class OpenRouterProvider(LLMProvider):
             async with session.post(url, json=payload, headers=headers) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
-                text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                text = (
+                    data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                )
                 return GenerateResult(text=text, raw=data)

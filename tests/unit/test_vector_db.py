@@ -1,10 +1,10 @@
 """
 Tests for memory/vector_db.py — VectorDB.
 """
+
 from __future__ import annotations
 
 import pytest
-import numpy as np
 from bantu_os.memory.vector_db import VectorDB
 
 

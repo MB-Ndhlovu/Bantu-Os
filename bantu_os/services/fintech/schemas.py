@@ -10,6 +10,7 @@ Env vars required:
   FLUTTERWAVE_SECRET_KEY  — Flutterwave secret key
   PAYSTACK_SECRET_KEY     — Paystack secret key
 """
+
 from __future__ import annotations
 
 TOOL_SCHEMAS = {

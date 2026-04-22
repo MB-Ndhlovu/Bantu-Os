@@ -3,6 +3,7 @@ Vector store abstraction with an adapter for the existing in-memory VectorDB.
 
 This allows swapping to FAISS/Chroma/Qdrant later without touching Memory callers.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -17,7 +18,9 @@ class VectorStore(ABC):
     """Abstract interface for vector stores."""
 
     @abstractmethod
-    def add(self, vector: np.ndarray, metadata: Dict[str, Any], text: Optional[str] = None) -> str:
+    def add(
+        self, vector: np.ndarray, metadata: Dict[str, Any], text: Optional[str] = None
+    ) -> str:
         raise NotImplementedError
 
     @abstractmethod
@@ -40,7 +43,9 @@ class VectorDBStore(VectorStore):
         self.db = VectorDB(dim=dim)
         self.dim = dim
 
-    def add(self, vector: np.ndarray, metadata: Dict[str, Any], text: Optional[str] = None) -> str:
+    def add(
+        self, vector: np.ndarray, metadata: Dict[str, Any], text: Optional[str] = None
+    ) -> str:
         return self.db.add(vector=vector, metadata=metadata, text=text)
 
     def search(self, query_vector: np.ndarray, top_k: int = 5) -> List[Dict[str, Any]]:
@@ -56,7 +61,6 @@ class VectorDBStore(VectorStore):
 try:
     # Optional Chroma example adapter skeleton (no hard dependency)
     import chromadb  # type: ignore
-    from chromadb.utils import embedding_functions  # type: ignore
 
     class ChromaVectorStore(VectorStore):  # pragma: no cover - optional
         def __init__(self, collection_name: str = "bantu-memory"):
@@ -64,21 +68,39 @@ try:
             self.collection = self.client.get_or_create_collection(collection_name)
             self.dim = None  # Chroma infers dimension
 
-        def add(self, vector: np.ndarray, metadata: Dict[str, Any], text: Optional[str] = None) -> str:
+        def add(
+            self,
+            vector: np.ndarray,
+            metadata: Dict[str, Any],
+            text: Optional[str] = None,
+        ) -> str:
             _id = metadata.get("id") or f"mem_{metadata.get('seq', 0)}"
-            self.collection.add(ids=[_id], embeddings=[vector.tolist()], metadatas=[metadata], documents=[text or ""])
+            self.collection.add(
+                ids=[_id],
+                embeddings=[vector.tolist()],
+                metadatas=[metadata],
+                documents=[text or ""],
+            )
             return _id
 
-        def search(self, query_vector: np.ndarray, top_k: int = 5) -> List[Dict[str, Any]]:
-            res = self.collection.query(query_embeddings=[query_vector.tolist()], n_results=top_k)
+        def search(
+            self, query_vector: np.ndarray, top_k: int = 5
+        ) -> List[Dict[str, Any]]:
+            res = self.collection.query(
+                query_embeddings=[query_vector.tolist()], n_results=top_k
+            )
             out: List[Dict[str, Any]] = []
             for i in range(len(res.get("ids", [[]])[0])):
-                out.append({
-                    "id": res["ids"][0][i],
-                    "similarity": float(res["distances"][0][i]) if "distances" in res else 0.0,
-                    "metadata": res["metadatas"][0][i],
-                    "text": res["documents"][0][i],
-                })
+                out.append(
+                    {
+                        "id": res["ids"][0][i],
+                        "similarity": (
+                            float(res["distances"][0][i]) if "distances" in res else 0.0
+                        ),
+                        "metadata": res["metadatas"][0][i],
+                        "text": res["documents"][0][i],
+                    }
+                )
             return out
 
         def get(self, record_id: str) -> Any:
@@ -88,6 +110,7 @@ try:
         def delete(self, record_id: str) -> bool:
             self.collection.delete(ids=[record_id])
             return True
+
 except Exception:  # pragma: no cover - ignore if chroma not installed
     ChromaVectorStore = None  # type: ignore
 
@@ -95,7 +118,7 @@ except Exception:  # pragma: no cover - ignore if chroma not installed
 
 try:
     import chromadb
-    from chromadb.config import Settings as ChromaSettings
+
     HAS_CHROMADB = True
 except Exception:
     HAS_CHROMADB = False
@@ -125,9 +148,12 @@ class ChromaVectorStore(VectorStore):
             self._coll = None
             self._fallback = VectorDB(dim=dim)
 
-    def add(self, vector: np.ndarray, metadata: Dict[str, Any], text: Optional[str] = None) -> str:
+    def add(
+        self, vector: np.ndarray, metadata: Dict[str, Any], text: Optional[str] = None
+    ) -> str:
         if self._coll is not None:
             import time
+
             uid = metadata.get("id") or f"mem_{int(time.time() * 1000)}"
             meta = dict(metadata)
             meta["text"] = text or ""
@@ -155,13 +181,23 @@ class ChromaVectorStore(VectorStore):
             out = []
             for i, uid in enumerate(results["ids"][0]):
                 dist = results["distances"][0][i]
-                out.append({
-                    "id": uid,
-                    "text": results["documents"][0][i] if i < len(results["documents"][0]) else "",
-                    "metadata": results["metadatas"][0][i] if i < len(results["metadatas"][0]) else {},
-                    "distance": dist,
-                    "similarity": 1.0 - dist,
-                })
+                out.append(
+                    {
+                        "id": uid,
+                        "text": (
+                            results["documents"][0][i]
+                            if i < len(results["documents"][0])
+                            else ""
+                        ),
+                        "metadata": (
+                            results["metadatas"][0][i]
+                            if i < len(results["metadatas"][0])
+                            else {}
+                        ),
+                        "distance": dist,
+                        "similarity": 1.0 - dist,
+                    }
+                )
             return out
         return self._fallback.query(query_embedding=query_vector, top_k=top_k)
 
@@ -170,7 +206,11 @@ class ChromaVectorStore(VectorStore):
             try:
                 r = self._coll.get(ids=[record_id])
                 if r["ids"]:
-                    return {"id": r["ids"][0], "text": r["documents"][0], "metadata": r["metadatas"][0]}
+                    return {
+                        "id": r["ids"][0],
+                        "text": r["documents"][0],
+                        "metadata": r["metadatas"][0],
+                    }
             except Exception:
                 pass
             return None

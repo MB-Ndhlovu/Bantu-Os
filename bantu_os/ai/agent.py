@@ -1,16 +1,14 @@
 """Agent loop — replanning, tool execution, and result handling for Bantu-OS."""
+
 from __future__ import annotations
 
-import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from bantu_os.core.kernel.llm_manager import LLMManager
 from bantu_os.core.kernel.providers.base import ChatMessage
 
 from .engine import AIEngine
-from .tools.schema import Tool
 
 
 class AgentStep(Enum):
@@ -77,7 +75,9 @@ class AIAgent:
         # Phase 1 — planning
         plan = await self._plan(user_input)
         if plan:
-            self._history.append(AgentMessage(role="assistant", content=plan, step=AgentStep.PLAN))
+            self._history.append(
+                AgentMessage(role="assistant", content=plan, step=AgentStep.PLAN)
+            )
 
         # Phase 2 — execution loop
         response = await self._execute_loop(user_input, plan)

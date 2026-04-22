@@ -1,6 +1,7 @@
 """
 HardwareService tool schemas — Phase 3.
 """
+
 from __future__ import annotations
 
 TOOL_SCHEMAS = {
@@ -72,12 +73,21 @@ TOOL_SCHEMAS = {
         "description": "Read the state of a GPIO pin (Raspberry Pi BCM numbering).",
         "parameters": {
             "type": "object",
-            "properties": {"pin": {"type": "integer", "description": "BCM GPIO pin number (e.g. 17)"}},
+            "properties": {
+                "pin": {
+                    "type": "integer",
+                    "description": "BCM GPIO pin number (e.g. 17)",
+                }
+            },
             "required": ["pin"],
         },
         "returns": {
             "type": "object",
-            "properties": {"pin": {"type": "integer"}, "state": {"type": "integer"}, "mode": {"type": "string"}},
+            "properties": {
+                "pin": {"type": "integer"},
+                "state": {"type": "integer"},
+                "mode": {"type": "string"},
+            },
         },
     },
     "hardware_gpio_write": {
@@ -86,11 +96,17 @@ TOOL_SCHEMAS = {
             "type": "object",
             "properties": {
                 "pin": {"type": "integer"},
-                "state": {"type": "boolean", "description": "True = HIGH (3.3V), False = LOW (0V)"},
+                "state": {
+                    "type": "boolean",
+                    "description": "True = HIGH (3.3V), False = LOW (0V)",
+                },
             },
             "required": ["pin", "state"],
         },
-        "returns": {"type": "object", "properties": {"pin": {"type": "integer"}, "state": {"type": "integer"}}},
+        "returns": {
+            "type": "object",
+            "properties": {"pin": {"type": "integer"}, "state": {"type": "integer"}},
+        },
     },
     "hardware_usb_list": {
         "description": "List all connected USB devices on the host.",

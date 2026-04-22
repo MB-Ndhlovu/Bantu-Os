@@ -1,6 +1,7 @@
 """
 Tests for MessagingService.
 """
+
 import pytest
 
 pytestmark = pytest.mark.asyncio
@@ -34,9 +35,12 @@ class TestMessagingService:
 
     async def test_email_requires_credentials(self):
         from bantu_os.services.messaging import MessagingService
+
         svc = MessagingService()
         with pytest.raises(OSError, match="SMTP"):
-            await svc.messaging_send_email(to="test@example.com", subject="Hi", body="Hello")
+            await svc.messaging_send_email(
+                to="test@example.com", subject="Hi", body="Hello"
+            )
 
     def test_telegram_requires_token(self):
         from bantu_os.services.messaging import MessagingService
@@ -45,13 +49,16 @@ class TestMessagingService:
         import asyncio
 
         with pytest.raises(EnvironmentError, match="TELEGRAM_BOT_TOKEN"):
-            asyncio.run(svc.messaging_send_telegram(
-                chat_id="123456",
-                text="Hello",
-            ))
+            asyncio.run(
+                svc.messaging_send_telegram(
+                    chat_id="123456",
+                    text="Hello",
+                )
+            )
 
     async def test_sms_requires_twilio_credentials(self):
         from bantu_os.services.messaging import MessagingService
+
         svc = MessagingService()
         with pytest.raises(OSError, match="TWILIO"):
             await svc.messaging_send_sms(to="+27612345678", body="Hello")

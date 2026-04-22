@@ -35,6 +35,7 @@ Usage:
         {'topic': 'home/sensors/temperature', 'payload': '23.5', 'qos': 1}
     )
 """
+
 from __future__ import annotations
 
 import json
@@ -47,6 +48,7 @@ from bantu_os.services.service_base import ServiceBase
 # Optional: paho-mqtt for actual MQTT support
 try:
     import paho.mqtt.client as mqtt
+
     _MQTT_AVAILABLE = True
 except ImportError:  # pragma: no cover
     _MQTT_AVAILABLE = False
@@ -58,7 +60,9 @@ except ImportError:  # pragma: no cover
 _DEVICE_REGISTRY: Dict[str, Dict[str, Any]] = {}
 
 
-def _register_device(device_id: str, name: str, device_type: str, metadata: Dict[str, Any]) -> None:
+def _register_device(
+    device_id: str, name: str, device_type: str, metadata: Dict[str, Any]
+) -> None:
     _DEVICE_REGISTRY[device_id] = {
         "device_id": device_id,
         "name": name,
@@ -79,9 +83,17 @@ def _device_status(device_id: str) -> Optional[Dict[str, Any]]:
 _SENSOR_STORE: Dict[str, list] = {}
 
 
-def _ingest_reading(device_id: str, sensor_type: str, value: Any, unit: str) -> Dict[str, Any]:
+def _ingest_reading(
+    device_id: str, sensor_type: str, value: Any, unit: str
+) -> Dict[str, Any]:
     ts = time.time()
-    entry = {"ts": ts, "device_id": device_id, "type": sensor_type, "value": value, "unit": unit}
+    entry = {
+        "ts": ts,
+        "device_id": device_id,
+        "type": sensor_type,
+        "value": value,
+        "unit": unit,
+    }
     key = f"{device_id}:{sensor_type}"
     if key not in _SENSOR_STORE:
         _SENSOR_STORE[key] = []
@@ -97,6 +109,7 @@ def _ingest_reading(device_id: str, sensor_type: str, value: Any, unit: str) -> 
 
 
 # ─── MQTT Client Wrapper ─────────────────────────────────────────────────────
+
 
 class _MQTTClient:
     """Lightweight MQTT client wrapper using paho-mqtt."""
@@ -164,10 +177,13 @@ class _MQTTClient:
         topic = msg.topic
         if topic not in self._messages:
             self._messages[topic] = []
-        self._messages[topic].append({"payload": msg.payload.decode(), "qos": msg.qos, "ts": time.time()})
+        self._messages[topic].append(
+            {"payload": msg.payload.decode(), "qos": msg.qos, "ts": time.time()}
+        )
 
 
 # ─── Service ─────────────────────────────────────────────────────────────────
+
 
 class IoTService(ServiceBase):
     """
@@ -198,7 +214,9 @@ class IoTService(ServiceBase):
             return {
                 "status": "ok",
                 "service": self.name,
-                "mqtt_broker": os.environ.get("MQTT_BROKER_URL", "mqtt://localhost:1883"),
+                "mqtt_broker": os.environ.get(
+                    "MQTT_BROKER_URL", "mqtt://localhost:1883"
+                ),
                 "connected": client.is_connected,
                 "devices_registered": len(_DEVICE_REGISTRY),
             }
@@ -208,6 +226,7 @@ class IoTService(ServiceBase):
     @property
     def tool_schema(self) -> Dict[str, Any]:
         from bantu_os.services.iot import schemas as _schemas
+
         return _schemas.TOOL_SCHEMAS
 
     async def use_tool_async(

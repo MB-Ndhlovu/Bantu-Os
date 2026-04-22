@@ -1,12 +1,12 @@
 """
 Tests for scheduling_agent — natural time parsing and SQLite-backed scheduler.
 """
+
 from __future__ import annotations
 
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List
 import pytest
 
 from bantu_os.agents.scheduling_agent import (
@@ -16,10 +16,10 @@ from bantu_os.agents.scheduling_agent import (
     _ensure_db,
 )
 
-
 # ---------------------------------------------------------------------------
 # parse_natural_time — unit tests
 # ---------------------------------------------------------------------------
+
 
 class TestParseNaturalTime:
     """Cover every supported format in parse_natural_time."""
@@ -59,26 +59,34 @@ class TestParseNaturalTime:
     def test_tomorrow_at_hhmm(self) -> None:
         now = self._now()
         dt = parse_natural_time("tomorrow at 09:30", now=now)
-        expected = (now + timedelta(days=1)).replace(hour=9, minute=30, second=0, microsecond=0)
+        expected = (now + timedelta(days=1)).replace(
+            hour=9, minute=30, second=0, microsecond=0
+        )
         assert dt == expected
 
     def test_tomorrow_at_8am(self) -> None:
         now = self._now()
         dt = parse_natural_time("tomorrow at 8AM", now=now)
-        expected = (now + timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0)
+        expected = (now + timedelta(days=1)).replace(
+            hour=8, minute=0, second=0, microsecond=0
+        )
         assert dt == expected
 
     def test_tomorrow_at_12pm(self) -> None:
         now = self._now()
         dt = parse_natural_time("tomorrow at 12pm", now=now)
-        expected = (now + timedelta(days=1)).replace(hour=12, minute=0, second=0, microsecond=0)
+        expected = (now + timedelta(days=1)).replace(
+            hour=12, minute=0, second=0, microsecond=0
+        )
         assert dt == expected
 
     def test_tomorrow_default(self) -> None:
         """No time specified → defaults to 09:00 next day."""
         now = self._now()
         dt = parse_natural_time("tomorrow", now=now)
-        expected = (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+        expected = (now + timedelta(days=1)).replace(
+            hour=9, minute=0, second=0, microsecond=0
+        )
         assert dt == expected
 
     # --- "today at HH:MM / HHAM/PM" or bare "at HH:MM" ---
@@ -90,7 +98,9 @@ class TestParseNaturalTime:
     def test_today_at_am(self) -> None:
         now = self._now()  # 14:00 — already passed, so rolls to tomorrow
         dt = parse_natural_time("at 8am", now=now)
-        expected = (now + timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0)
+        expected = (now + timedelta(days=1)).replace(
+            hour=8, minute=0, second=0, microsecond=0
+        )
         assert dt == expected
 
     def test_today_at_pm(self) -> None:
@@ -114,24 +124,32 @@ class TestParseNaturalTime:
         now = self._now().replace(hour=10, minute=0, second=0, microsecond=0)
         dt = parse_natural_time("09:00", now=now)
         # 09:00 today is already past → next occurrence is tomorrow 09:00
-        assert dt == now.replace(day=now.day + 1, hour=9, minute=0, second=0, microsecond=0)
+        assert dt == now.replace(
+            day=now.day + 1, hour=9, minute=0, second=0, microsecond=0
+        )
 
     def test_bare_8am(self) -> None:
         now = self._now()  # 14:00 — already past midnight
         dt = parse_natural_time("8am", now=now)
-        expected = (now + timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0)
+        expected = (now + timedelta(days=1)).replace(
+            hour=8, minute=0, second=0, microsecond=0
+        )
         assert dt == expected
 
     def test_bare_12pm(self) -> None:
         now = self._now()  # 14:00 — already past noon
         dt = parse_natural_time("12pm", now=now)
-        expected = (now + timedelta(days=1)).replace(hour=12, minute=0, second=0, microsecond=0)
+        expected = (now + timedelta(days=1)).replace(
+            hour=12, minute=0, second=0, microsecond=0
+        )
         assert dt == expected
 
     def test_bare_12am(self) -> None:
         now = self._now()  # 14:00 — already past midnight
         dt = parse_natural_time("12am", now=now)
-        expected = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        expected = (now + timedelta(days=1)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
         assert dt == expected
 
     # --- whitespace / casing variations ---
@@ -157,6 +175,7 @@ class TestParseNaturalTime:
 # Event dataclass
 # ---------------------------------------------------------------------------
 
+
 class TestEventDataclass:
     def test_when_datetime_parses_iso(self) -> None:
         e = Event(id=1, title="Test", when_ts="2026-04-20 09:30")
@@ -167,6 +186,7 @@ class TestEventDataclass:
 # SchedulingAgent — integration-style unit tests
 # ---------------------------------------------------------------------------
 
+
 class TestSchedulingAgent:
     """Tests for the SQLite-backed scheduler using a temporary DB."""
 
@@ -176,26 +196,36 @@ class TestSchedulingAgent:
         return SchedulingAgent(db_path=db)
 
     def test_add_and_list_event(self, agent: SchedulingAgent) -> None:
-        id_ = agent.add_event("Team standup", "tomorrow at 9am", now=datetime(2026, 4, 16, 10, 0))
+        id_ = agent.add_event(
+            "Team standup", "tomorrow at 9am", now=datetime(2026, 4, 16, 10, 0)
+        )
         assert id_ == 1
         events = agent.list_events()
         assert len(events) == 1
         assert events[0].title == "Team standup"
 
     def test_add_multiple_events_ordered_by_time(self, agent: SchedulingAgent) -> None:
-        agent.add_event("Early meeting", "2026-04-17 07:00", now=datetime(2026, 4, 16, 10, 0))
-        agent.add_event("Late meeting", "2026-04-17 18:00", now=datetime(2026, 4, 16, 10, 0))
+        agent.add_event(
+            "Early meeting", "2026-04-17 07:00", now=datetime(2026, 4, 16, 10, 0)
+        )
+        agent.add_event(
+            "Late meeting", "2026-04-17 18:00", now=datetime(2026, 4, 16, 10, 0)
+        )
         ids = [e.id for e in agent.list_events()]
         # Earlier event gets lower id but list is sorted by when_ts
         titles = [e.title for e in agent.list_events()]
         assert titles == ["Early meeting", "Late meeting"]
 
     def test_remove_event_exists(self, agent: SchedulingAgent) -> None:
-        id_ = agent.add_event("To remove", "in 10 minutes", now=datetime(2026, 4, 16, 10, 0))
+        id_ = agent.add_event(
+            "To remove", "in 10 minutes", now=datetime(2026, 4, 16, 10, 0)
+        )
         assert agent.remove_event(id_) is True
         assert agent.list_events() == []
 
-    def test_remove_event_nonexistent_returns_false(self, agent: SchedulingAgent) -> None:
+    def test_remove_event_nonexistent_returns_false(
+        self, agent: SchedulingAgent
+    ) -> None:
         assert agent.remove_event(9999) is False
 
     def test_add_event_invalid_time_raises(self, agent: SchedulingAgent) -> None:
@@ -212,7 +242,9 @@ class TestSchedulingAgent:
 
     def test_events_persist_across_instances(self, tmp_path: Path) -> None:
         db = tmp_path / "persistent.db"
-        id1 = SchedulingAgent(db_path=db).add_event("Persist test", "in 1 hour", now=datetime(2026, 4, 16, 10, 0))
+        id1 = SchedulingAgent(db_path=db).add_event(
+            "Persist test", "in 1 hour", now=datetime(2026, 4, 16, 10, 0)
+        )
         events = SchedulingAgent(db_path=db).list_events()
         assert len(events) == 1
         assert events[0].id == id1

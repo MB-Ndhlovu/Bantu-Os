@@ -16,12 +16,11 @@ from typing import Any, Optional
 try:
     import chromadb
     from chromadb.config import Settings as ChromaSettings
+
     HAS_CHROMADB = True
 except ImportError:
     HAS_CHROMADB = False
 
-from bantu_os.memory.vector_db import VectorDB
-from bantu_os.memory.embeddings.base import EmbeddingsProvider
 
 
 class ChromaStore:
@@ -100,13 +99,15 @@ class ChromaStore:
 
         out = []
         for i, uid in enumerate(ids):
-            out.append({
-                "id": uid,
-                "text": docs[i] if i < len(docs) else "",
-                "metadata": metas[i] if i < len(metas) else {},
-                "distance": dists[i] if i < len(dists) else 0.0,
-                "similarity": 1.0 - dists[i] if i < len(dists) else 0.0,
-            })
+            out.append(
+                {
+                    "id": uid,
+                    "text": docs[i] if i < len(docs) else "",
+                    "metadata": metas[i] if i < len(metas) else {},
+                    "distance": dists[i] if i < len(dists) else 0.0,
+                    "similarity": 1.0 - dists[i] if i < len(dists) else 0.0,
+                }
+            )
         return out
 
     def delete(self, uid: str) -> bool:

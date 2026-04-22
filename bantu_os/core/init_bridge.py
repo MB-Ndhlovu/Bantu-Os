@@ -8,6 +8,7 @@ C init acts as PID 1 in the Bantu-OS environment. Services register
 their name and PID on startup, send heartbeats, and handle SIGTERM
 gracefully on shutdown.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -15,14 +16,10 @@ import json
 import os
 import signal
 import socket
-import sys
-import time
 from pathlib import Path
 from typing import Optional
 
 # Wire Phase 2 services into the kernel
-from bantu_os.core.socket_server import make_kernel
-from bantu_os.core.kernel import Kernel
 
 SOCKET_PATH = "/run/bantu/init.sock"
 
@@ -82,11 +79,13 @@ class InitBridge:
         """
         try:
             self._connect()
-            resp = self._send({
-                "cmd": "register",
-                "name": self.service_name,
-                "pid": os.getpid(),
-            })
+            resp = self._send(
+                {
+                    "cmd": "register",
+                    "name": self.service_name,
+                    "pid": os.getpid(),
+                }
+            )
             self._registered = True
             return resp.get("ok", False)
         except (ConnectionRefusedError, FileNotFoundError, json.JSONDecodeError):
@@ -153,9 +152,11 @@ class InitBridge:
         allowing the service to perform graceful cleanup before exiting.
         """
         loop = asyncio.get_running_loop()
+
         def handler(sig: signal.Signals) -> None:
-            print(f"[init-bridge] Received SIGTERM, initiating graceful shutdown…")
+            print("[init-bridge] Received SIGTERM, initiating graceful shutdown…")
             self._shutdown_event.set()
+
         loop.add_signal_handler(signal.SIGTERM, handler)
 
     @property
@@ -174,7 +175,9 @@ class InitBridge:
         if registered:
             print(f"[init-bridge] Registered with C init as '{self.service_name}'")
         else:
-            print(f"[init-bridge] C init socket not found at {SOCKET_PATH} — running standalone")
+            print(
+                f"[init-bridge] C init socket not found at {SOCKET_PATH} — running standalone"
+            )
         self.setup_sigterm_handler()
         return self
 

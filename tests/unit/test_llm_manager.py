@@ -1,6 +1,7 @@
 """
 Tests for llm_manager — model loading, switching, and generation.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -21,7 +22,9 @@ class TestLLMManager:
         assert mgr.active_model is None
 
     def test_load_model_sets_active(self, mgr: LLMManager) -> None:
-        with patch("bantu_os.core.kernel.llm_manager.OpenAIChatProvider") as mock_provider:
+        with patch(
+            "bantu_os.core.kernel.llm_manager.OpenAIChatProvider"
+        ) as mock_provider:
             instance = MagicMock()
             mock_provider.return_value = instance
             result = mgr.load_model("default", provider="openai", model="gpt-4o")
@@ -30,14 +33,18 @@ class TestLLMManager:
             assert mgr.active_model == "default"
 
     def test_load_multiple_models_keeps_first_active(self, mgr: LLMManager) -> None:
-        with patch("bantu_os.core.kernel.llm_manager.OpenAIChatProvider") as mock_provider:
+        with patch(
+            "bantu_os.core.kernel.llm_manager.OpenAIChatProvider"
+        ) as mock_provider:
             mock_provider.return_value = MagicMock()
             mgr.load_model("model_a", provider="openai", model="gpt-4o")
             mgr.load_model("model_b", provider="openai", model="gpt-4o-mini")
             assert mgr.active_model == "model_a"
 
     def test_set_active_model_valid(self, mgr: LLMManager) -> None:
-        with patch("bantu_os.core.kernel.llm_manager.OpenAIChatProvider") as mock_provider:
+        with patch(
+            "bantu_os.core.kernel.llm_manager.OpenAIChatProvider"
+        ) as mock_provider:
             mock_provider.return_value = MagicMock()
             mgr.load_model("model_a", provider="openai", model="gpt-4o")
             mgr.load_model("model_b", provider="openai", model="gpt-4o-mini")
@@ -50,7 +57,9 @@ class TestLLMManager:
         assert result is False
 
     def test_unload_model(self, mgr: LLMManager) -> None:
-        with patch("bantu_os.core.kernel.llm_manager.OpenAIChatProvider") as mock_provider:
+        with patch(
+            "bantu_os.core.kernel.llm_manager.OpenAIChatProvider"
+        ) as mock_provider:
             mock_provider.return_value = MagicMock()
             mgr.load_model("default", provider="openai", model="gpt-4o")
             result = mgr.unload_model("default")
@@ -59,14 +68,18 @@ class TestLLMManager:
             assert mgr.active_model is None
 
     def test_unload_model_clears_active_if_unloaded(self, mgr: LLMManager) -> None:
-        with patch("bantu_os.core.kernel.llm_manager.OpenAIChatProvider") as mock_provider:
+        with patch(
+            "bantu_os.core.kernel.llm_manager.OpenAIChatProvider"
+        ) as mock_provider:
             mock_provider.return_value = MagicMock()
             mgr.load_model("default", provider="openai", model="gpt-4o")
             mgr.unload_model("default")
             assert mgr.active_model is None
 
     def test_list_models(self, mgr: LLMManager) -> None:
-        with patch("bantu_os.core.kernel.llm_manager.OpenAIChatProvider") as mock_provider:
+        with patch(
+            "bantu_os.core.kernel.llm_manager.OpenAIChatProvider"
+        ) as mock_provider:
             mock_provider.return_value = MagicMock()
             mgr.load_model("model_a", provider="openai", model="gpt-4o")
             mgr.load_model("model_b", provider="openai", model="gpt-4o-mini")

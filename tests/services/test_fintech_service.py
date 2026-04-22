@@ -1,6 +1,7 @@
 """
 Tests for FintechService.
 """
+
 import pytest
 
 pytestmark = pytest.mark.asyncio

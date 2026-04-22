@@ -26,6 +26,7 @@ Env vars required:
     FLUTTERWAVE_SECRET_KEY Flutterwave secret key
     PAYSTACK_SECRET_KEY    Paystack secret key
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -198,7 +199,8 @@ class FintechService:
         # Normalize phone to MSISDN format (254...)
         phone = self._normalize_msisdn(phone)
 
-        import base64, datetime as dt
+        import base64
+        import datetime as dt
 
         timestamp = dt.datetime.now().strftime("%Y%m%d%H%M%S")
         passkey_str = f"{self._mpesa_shortcode}{self._mpesa_passkey}{timestamp}"
@@ -213,7 +215,8 @@ class FintechService:
             "PartyA": phone,
             "PartyB": self._mpesa_shortcode,
             "PhoneNumber": phone,
-            "CallBackURL": self._mpesa_callback_url or "https://bantu-os.local/mpesa/callback",
+            "CallBackURL": self._mpesa_callback_url
+            or "https://bantu-os.local/mpesa/callback",
             "AccountReference": reference,
             "TransactionDesc": f"Payment {reference}",
         }
@@ -242,9 +245,7 @@ class FintechService:
             return self._mpesa_token
 
         url = "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
-        auth = aiohttp.BasicAuth(
-            self._mpesa_consumer_key, self._mpesa_consumer_secret
-        )
+        auth = aiohttp.BasicAuth(self._mpesa_consumer_key, self._mpesa_consumer_secret)
         async with aiohttp.ClientSession() as session:
             async with session.get(url, auth=auth) as resp:
                 data = await resp.json()
@@ -255,7 +256,12 @@ class FintechService:
                 return self._mpesa_token
 
     async def _mpesa_poll(
-        self, checkout_id: str, phone: str, headers: dict[str, str], *, max_wait: int = 60
+        self,
+        checkout_id: str,
+        phone: str,
+        headers: dict[str, str],
+        *,
+        max_wait: int = 60,
     ) -> str:
         """Poll M-Pesa for transaction result."""
         url = "https://api.safaricom.co.ke/mpesa/stkpush/v1/query"
@@ -362,12 +368,10 @@ class FintechService:
                     return {"error": data.get("message", "failed")}
                 balances = data.get("data", [])
                 return {
-                    "available": balances[0].get("available_balance", 0)
-                    if balances
-                    else 0,
-                    "currency": balances[0].get("currency", "")
-                    if balances
-                    else "",
+                    "available": (
+                        balances[0].get("available_balance", 0) if balances else 0
+                    ),
+                    "currency": balances[0].get("currency", "") if balances else "",
                     "provider": "flutterwave",
                 }
 
@@ -406,9 +410,7 @@ class FintechService:
             async with session.post(url, json=payload, headers=headers) as resp:
                 data = await resp.json()
                 if not data.get("status"):
-                    raise RuntimeError(
-                        f"Paystack error: {data.get('message', data)}"
-                    )
+                    raise RuntimeError(f"Paystack error: {data.get('message', data)}")
                 result = data.get("data", {})
                 return {
                     "authorization_url": result.get("authorization_url", ""),

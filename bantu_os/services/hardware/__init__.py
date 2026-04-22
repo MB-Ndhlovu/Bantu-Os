@@ -23,6 +23,7 @@ Usage:
     svc = HardwareService()
     result = await svc.use_tool_async('hardware_cpu_stats', {})
 """
+
 from __future__ import annotations
 
 import os
@@ -31,6 +32,7 @@ from typing import Any, Dict
 
 try:
     import psutil
+
     _PSUTIL_AVAILABLE = True
 except ImportError:  # pragma: no cover
     psutil = None
@@ -38,6 +40,7 @@ except ImportError:  # pragma: no cover
 
 try:
     import RPi.GPIO as GPIO
+
     _GPIO_AVAILABLE = True
 except ImportError:  # pragma: no cover
     GPIO = None
@@ -70,6 +73,7 @@ class HardwareService(ServiceBase):
     @property
     def tool_schema(self) -> Dict[str, Any]:
         from bantu_os.services.hardware import schemas as _schemas
+
         return _schemas.TOOL_SCHEMAS
 
     async def use_tool_async(
@@ -106,7 +110,10 @@ class HardwareService(ServiceBase):
         freq = psutil.cpu_freq()
         temp = None
         # Try temperature on Linux (thermal_zone)
-        for path in ("/sys/class/thermal/thermal_zone0/temp", "/proc/acpi/thermal_zone/TZ00/temperature"):
+        for path in (
+            "/sys/class/thermal/thermal_zone0/temp",
+            "/proc/acpi/thermal_zone/TZ00/temperature",
+        ):
             if os.path.exists(path):
                 try:
                     with open(path) as f:
@@ -117,10 +124,10 @@ class HardwareService(ServiceBase):
         # Raspberry Pi BCM GPIO temperature
         if temp is None and os.path.exists("/opt/vc/bin/vcgencmd"):
             import subprocess
+
             try:
                 out = subprocess.check_output(
-                    ["/opt/vc/bin/vcgencmd", "measure_temp"],
-                    text=True
+                    ["/opt/vc/bin/vcgencmd", "measure_temp"], text=True
                 )
                 temp = float(out.replace("temp=", "").replace("'C\n", ""))
             except (OSError, ValueError):
@@ -200,7 +207,10 @@ class HardwareService(ServiceBase):
             raise OSError("psutil not installed. Run: pip install psutil")
         counters = psutil.net_io_counters(pernic=True).get(interface)
         if counters is None:
-            return {"error": f"Interface '{interface}' not found", "available": list(psutil.net_io_counters(pernic=True).keys())}
+            return {
+                "error": f"Interface '{interface}' not found",
+                "available": list(psutil.net_io_counters(pernic=True).keys()),
+            }
         return {
             "interface": interface,
             "bytes_recv": counters.bytes_recv,
@@ -224,7 +234,9 @@ class HardwareService(ServiceBase):
             ``{'pin': <int>, 'state': 0|1, 'mode': 'BCM'}``
         """
         if not _GPIO_AVAILABLE:
-            raise OSError("RPi.GPIO not available. This tool only works on Raspberry Pi.")
+            raise OSError(
+                "RPi.GPIO not available. This tool only works on Raspberry Pi."
+            )
         try:
             GPIO.setmode(GPIO.BCM)
             GPIO.setup(pin, GPIO.IN)
@@ -245,7 +257,9 @@ class HardwareService(ServiceBase):
             ``{'pin': <int>, 'state': 0|1}``
         """
         if not _GPIO_AVAILABLE:
-            raise OSError("RPi.GPIO not available. This tool only works on Raspberry Pi.")
+            raise OSError(
+                "RPi.GPIO not available. This tool only works on Raspberry Pi."
+            )
         try:
             GPIO.setmode(GPIO.BCM)
             GPIO.setup(pin, GPIO.OUT)
@@ -287,12 +301,14 @@ class HardwareService(ServiceBase):
                                 else:
                                     manufacturer = f.read().strip()
                     if id_vendor:
-                        devices.append({
-                            "bus": name,
-                            "vendor_id": id_vendor,
-                            "product_id": id_product,
-                            "manufacturer": manufacturer,
-                        })
+                        devices.append(
+                            {
+                                "bus": name,
+                                "vendor_id": id_vendor,
+                                "product_id": id_product,
+                                "manufacturer": manufacturer,
+                            }
+                        )
                 except OSError:
                     pass
         return {"devices": devices, "count": len(devices)}

@@ -1,6 +1,7 @@
 """
 Application context for the CLI, holding Kernel, AgentManager, and Memory.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

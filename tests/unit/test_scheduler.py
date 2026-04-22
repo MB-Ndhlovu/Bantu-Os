@@ -1,8 +1,7 @@
 """
 Tests for the process scheduler.
 """
-import time
-import pytest
+
 from bantu_os.core.scheduler import Scheduler, ProcessState
 
 

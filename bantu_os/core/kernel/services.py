@@ -13,6 +13,7 @@ Usage:
     await mgr.start_all()
     status = await mgr.health_check_all()
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -37,6 +38,7 @@ class ServiceStatus(Enum):
 @dataclass
 class ServiceDescriptor:
     """Metadata about a registered service."""
+
     name: str
     description: str
     version: str = "0.1.0"
@@ -45,11 +47,12 @@ class ServiceDescriptor:
 @dataclass
 class ManagedService:
     """Runtime state of a managed service."""
+
     descriptor: ServiceDescriptor
     instance: Any = field(default=None)
     status: ServiceStatus = ServiceStatus.STOPPED
     health_check_fn: Optional[Callable[[], Any]] = field(default=None)
-    restart_policy: str = "none"          # "none" | "on-failure" | "always"
+    restart_policy: str = "none"  # "none" | "on-failure" | "always"
     restart_count: int = 0
     max_restarts: int = 3
     last_health_check: Optional[datetime] = None
@@ -126,9 +129,27 @@ class ServiceManager:
 
         # Phase 1 services
         for svc_info in [
-            ("file",    "bantu_os.services.file_service",    "FileService",    "file read/write/search", "on-failure"),
-            ("process", "bantu_os.services.process_service",   "ProcessService",  "process spawn/kill/stats", "on-failure"),
-            ("network", "bantu_os.services.network_service",  "NetworkService",  "HTTP client, connectivity", "on-failure"),
+            (
+                "file",
+                "bantu_os.services.file_service",
+                "FileService",
+                "file read/write/search",
+                "on-failure",
+            ),
+            (
+                "process",
+                "bantu_os.services.process_service",
+                "ProcessService",
+                "process spawn/kill/stats",
+                "on-failure",
+            ),
+            (
+                "network",
+                "bantu_os.services.network_service",
+                "NetworkService",
+                "HTTP client, connectivity",
+                "on-failure",
+            ),
         ]:
             name, module, cls_name, desc, policy = svc_info
             if self._try_register(name, module, cls_name, desc, policy):
@@ -136,9 +157,27 @@ class ServiceManager:
 
         # Phase 2 services
         for svc_info in [
-            ("messaging", "bantu_os.services.messaging",      "MessagingService",    "email/SMS/Telegram", "on-failure"),
-            ("fintech",   "bantu_os.services.fintech",        "FintechService",      "Stripe/M-Pesa/Flutterwave/Paystack", "on-failure"),
-            ("crypto",    "bantu_os.services.crypto",           "CryptoWalletService", "EVM wallet: balance/send/sign", "on-failure"),
+            (
+                "messaging",
+                "bantu_os.services.messaging",
+                "MessagingService",
+                "email/SMS/Telegram",
+                "on-failure",
+            ),
+            (
+                "fintech",
+                "bantu_os.services.fintech",
+                "FintechService",
+                "Stripe/M-Pesa/Flutterwave/Paystack",
+                "on-failure",
+            ),
+            (
+                "crypto",
+                "bantu_os.services.crypto",
+                "CryptoWalletService",
+                "EVM wallet: balance/send/sign",
+                "on-failure",
+            ),
         ]:
             name, module, cls_name, desc, policy = svc_info
             if self._try_register(name, module, cls_name, desc, policy):
@@ -146,8 +185,20 @@ class ServiceManager:
 
         # Phase 3 services
         for svc_info in [
-            ("iot",       "bantu_os.services.iot",              "IoTService",         "MQTT broker, device registry, sensor ingestion", "on-failure"),
-            ("hardware",  "bantu_os.services.hardware",         "HardwareService",    "CPU/memory/disk/GPIO/USB monitoring", "on-failure"),
+            (
+                "iot",
+                "bantu_os.services.iot",
+                "IoTService",
+                "MQTT broker, device registry, sensor ingestion",
+                "on-failure",
+            ),
+            (
+                "hardware",
+                "bantu_os.services.hardware",
+                "HardwareService",
+                "CPU/memory/disk/GPIO/USB monitoring",
+                "on-failure",
+            ),
         ]:
             name, module, cls_name, desc, policy = svc_info
             if self._try_register(name, module, cls_name, desc, policy):
@@ -167,7 +218,9 @@ class ServiceManager:
         try:
             mod = __import__(module, fromlist=[cls_name])
             cls = getattr(mod, cls_name)
-            self.register(name, cls(), description=description, restart_policy=restart_policy)
+            self.register(
+                name, cls(), description=description, restart_policy=restart_policy
+            )
             return True
         except ImportError as e:
             log.debug("[svc] skip %s (%s not available): %s", name, module, e)
@@ -252,10 +305,18 @@ class ServiceManager:
             return {"service": name, "status": "unknown", "error": "not found"}
 
         if svc.status not in (ServiceStatus.HEALTHY, ServiceStatus.DEGRADED):
-            return {"service": name, "status": svc.status.value, "error": svc.last_error}
+            return {
+                "service": name,
+                "status": svc.status.value,
+                "error": svc.last_error,
+            }
 
         if svc.health_check_fn is None:
-            return {"service": name, "status": "healthy", "note": "no health check defined"}
+            return {
+                "service": name,
+                "status": "healthy",
+                "note": "no health check defined",
+            }
 
         try:
             hc = svc.health_check_fn
@@ -264,7 +325,11 @@ class ServiceManager:
             else:
                 result = hc()
             svc.last_health_check = datetime.utcnow()
-            healthy = result.get("status") == "ok" if isinstance(result, dict) else result is True
+            healthy = (
+                result.get("status") == "ok"
+                if isinstance(result, dict)
+                else result is True
+            )
             svc.status = ServiceStatus.HEALTHY if healthy else ServiceStatus.DEGRADED
             return {"service": name, "status": svc.status.value, "detail": result}
         except Exception as e:
@@ -298,10 +363,18 @@ class ServiceManager:
                     if svc.restart_policy in ("on-failure", "always"):
                         if svc.restart_count < svc.max_restarts:
                             svc.restart_count += 1
-                            log.info("[svc] auto-restarting %s (attempt %d)", name, svc.restart_count)
+                            log.info(
+                                "[svc] auto-restarting %s (attempt %d)",
+                                name,
+                                svc.restart_count,
+                            )
                             await self.start_service(name)
                         else:
-                            log.error("[svc] %s exceeded max restarts (%d)", name, svc.max_restarts)
+                            log.error(
+                                "[svc] %s exceeded max restarts (%d)",
+                                name,
+                                svc.max_restarts,
+                            )
                             self._fire("failed", name, "max restarts exceeded")
 
     def start_monitoring(self) -> None:

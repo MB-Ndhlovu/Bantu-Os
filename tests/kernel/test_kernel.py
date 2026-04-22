@@ -3,6 +3,7 @@ import pytest
 from bantu_os.core.kernel.kernel import Kernel
 from bantu_os.core.kernel.providers.base import ChatMessage
 
+
 @pytest.fixture(autouse=True)
 def stub_llm_provider(monkeypatch):
     """Stub provider creation to avoid real API and API key requirements.
@@ -16,14 +17,18 @@ def stub_llm_provider(monkeypatch):
         def __init__(self, model: str, **kwargs):
             self.model = model
 
-        async def generate(self, *, messages, temperature=0.7, max_tokens=None, **kwargs):
+        async def generate(
+            self, *, messages, temperature=0.7, max_tokens=None, **kwargs
+        ):
             # Default dummy behavior; tests can override kernel.llm.generate if needed
             return {"text": "stub", "raw": {}}
 
     def _fake_build_provider(self, provider: str, model: str, **kwargs):
         return DummyProvider(model=model, **kwargs)
 
-    monkeypatch.setattr(LLMManager, "_build_provider", _fake_build_provider, raising=True)
+    monkeypatch.setattr(
+        LLMManager, "_build_provider", _fake_build_provider, raising=True
+    )
     yield
 
 
@@ -47,7 +52,9 @@ async def test_generate_response_returns_structured_result(monkeypatch):
         {"role": "user", "content": "Say hi"},
     ]
 
-    result = await kernel.generate_response(messages=msgs, temperature=0.2, max_tokens=64)
+    result = await kernel.generate_response(
+        messages=msgs, temperature=0.2, max_tokens=64
+    )
 
     assert isinstance(result, dict)
     assert result.get("text") == "hello"

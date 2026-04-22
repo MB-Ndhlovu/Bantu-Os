@@ -1,5 +1,4 @@
 import pytest
-import asyncio
 
 from bantu_os.agents.agent_manager import AgentManager
 
@@ -10,7 +9,9 @@ class FakeKernel:
     def __init__(self, response):
         self.response = response
 
-    async def process_input(self, text, system_prompt=None, temperature=None, max_tokens=None, **kwargs):
+    async def process_input(
+        self, text, system_prompt=None, temperature=None, max_tokens=None, **kwargs
+    ):
         return self.response
 
 

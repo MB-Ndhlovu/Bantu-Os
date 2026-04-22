@@ -2,6 +2,7 @@
 Bantu-OS Process Scheduler
 Manages process scheduling with priority queues and time-slicing.
 """
+
 from __future__ import annotations
 
 import time
@@ -35,14 +36,22 @@ class Process:
 class Scheduler:
     def __init__(self, quantum_ms: float = 10.0) -> None:
         self.quantum_ms = quantum_ms
-        self._ready_queues: list[list[Process]] = [ [], [], [], [] ]  # priority 0-3
+        self._ready_queues: list[list[Process]] = [[], [], [], []]  # priority 0-3
         self._waiting: list[Process] = []
         self._terminated: list[Process] = []
         self._next_pid = 1
         self._running: Process | None = None
 
-    def add_process(self, name: str, func: Callable, args: tuple = (), priority: int = 1) -> Process:
-        proc = Process(pid=self._next_pid, name=name, priority=min(max(priority, 0), 3), func=func, args=args)
+    def add_process(
+        self, name: str, func: Callable, args: tuple = (), priority: int = 1
+    ) -> Process:
+        proc = Process(
+            pid=self._next_pid,
+            name=name,
+            priority=min(max(priority, 0), 3),
+            func=func,
+            args=args,
+        )
         self._next_pid += 1
         self._ready_queues[proc.priority].insert(0, proc)
         proc.state = ProcessState.READY

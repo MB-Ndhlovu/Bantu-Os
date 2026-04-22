@@ -1,9 +1,10 @@
 """AI Engine — orchestrates LLM calls, tool dispatch, and result handling."""
+
 from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from bantu_os.core.kernel.llm_manager import LLMManager
 from bantu_os.core.kernel.providers.base import ChatMessage, GenerateResult
@@ -21,6 +22,7 @@ def _read_file(path: str) -> str:
 
 def _write_file(path: str, content: str) -> str:
     import os
+
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w") as f:
         f.write(content)
@@ -29,11 +31,13 @@ def _write_file(path: str, content: str) -> str:
 
 def _list_files(path: str = ".") -> List[str]:
     import os
+
     return sorted(os.listdir(path))
 
 
 def _run_command(command: str) -> Dict[str, Any]:
     import subprocess
+
     result = subprocess.run(
         command, shell=True, capture_output=True, text=True, timeout=30
     )
@@ -191,20 +195,28 @@ class AIEngine:
             results.append({"tool": name, "result": tool_result})
 
             # Build the assistant message that would have triggered this
-            assistant_msgs.append({
-                "role": "assistant",
-                "content": text[:500] if text else None,
-                "tool_calls": [
-                    {"id": call.get("id", ""), "name": name, "arguments": json.dumps(args)}
-                ],
-            })
+            assistant_msgs.append(
+                {
+                    "role": "assistant",
+                    "content": text[:500] if text else None,
+                    "tool_calls": [
+                        {
+                            "id": call.get("id", ""),
+                            "name": name,
+                            "arguments": json.dumps(args),
+                        }
+                    ],
+                }
+            )
 
             # Append the tool result as a tool message
-            messages.append({
-                "role": "tool",
-                "content": json.dumps(tool_result),
-                "name": name,
-            })
+            messages.append(
+                {
+                    "role": "tool",
+                    "content": json.dumps(tool_result),
+                    "name": name,
+                }
+            )
 
         return _GenerateResult(
             text=text,
@@ -212,9 +224,7 @@ class AIEngine:
             new_messages=assistant_msgs,
         )
 
-    def _extract_tool_calls(
-        self, raw: Any, text: str
-    ) -> List[Dict[str, Any]]:
+    def _extract_tool_calls(self, raw: Any, text: str) -> List[Dict[str, Any]]:
         """Extract tool calls from provider-specific raw response or text fallback."""
         calls: List[Dict[str, Any]] = []
 
@@ -257,7 +267,11 @@ class AIEngine:
         else:
             name = str(raw_call)
             args = {}
-        return {"name": name, "arguments": args, "id": raw_call.get("id", "") if isinstance(raw_call, dict) else ""}
+        return {
+            "name": name,
+            "arguments": args,
+            "id": raw_call.get("id", "") if isinstance(raw_call, dict) else "",
+        }
 
     def _extract_from_text(self, text: str) -> List[Dict[str, Any]]:
         """Extract tool calls from plain text responses (JSON in code blocks)."""
@@ -287,6 +301,7 @@ class AIEngine:
 
         try:
             import asyncio
+
             if asyncio.iscoroutinefunction(handler):
                 result = asyncio.run(handler(**args))
             else:

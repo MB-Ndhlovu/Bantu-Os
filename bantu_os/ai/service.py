@@ -3,18 +3,18 @@ Bantu-OS AI Service Layer
 Receives requests via IPC, invokes LLM, returns responses.
 Works alongside the Rust shell REPL as the AI brain.
 """
+
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import os
 import signal
-import sys
 from dataclasses import dataclass, field
 from typing import Optional
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+)
 logger = logging.getLogger("ai_service")
 
 
@@ -32,7 +32,9 @@ class AIService:
         self.active_agent: Optional[AIAgent] = None
         self._running = False
 
-    def register_agent(self, name: str, system_prompt: str, tools: Optional[list] = None) -> None:
+    def register_agent(
+        self, name: str, system_prompt: str, tools: Optional[list] = None
+    ) -> None:
         agent = AIAgent(name=name, system_prompt=system_prompt, tools=tools or [])
         self.agents[name] = agent
         logger.info(f"Registered agent: {name}")
@@ -44,7 +46,11 @@ class AIService:
         return False
 
     async def invoke(self, prompt: str, agent_name: Optional[str] = None) -> str:
-        agent = self.agents.get(agent_name or "") or self.active_agent or AIAgent(name="default", system_prompt="You are Bantu OS.")
+        agent = (
+            self.agents.get(agent_name or "")
+            or self.active_agent
+            or AIAgent(name="default", system_prompt="You are Bantu OS.")
+        )
         logger.info(f"[{agent.name}] IN: {prompt[:80]}...")
 
         response = f"[Bantu-OS AI] Processed: {prompt[:60]}..."

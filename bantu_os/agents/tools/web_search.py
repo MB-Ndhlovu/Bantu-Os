@@ -7,6 +7,7 @@ Web search tool with SerpAPI (preferred if key available) or DuckDuckGo fallback
 
 This tool is synchronous and uses only Python's standard library for HTTP.
 """
+
 from __future__ import annotations
 
 import json
@@ -16,7 +17,9 @@ from urllib.parse import urlencode
 from urllib.request import urlopen, Request
 
 
-def _http_get_json(url: str, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+def _http_get_json(
+    url: str, headers: Optional[Dict[str, str]] = None
+) -> Dict[str, Any]:
     req = Request(url, headers=headers or {"User-Agent": "bantu-os/0.1"})
     with urlopen(req, timeout=20) as resp:  # nosec - simple GET for public APIs
         data = resp.read()
@@ -55,11 +58,13 @@ def web_search(query: str, *, api_key: Optional[str] = None, limit: int = 5) -> 
         data = _http_get_json(url)
         items: List[Dict[str, str]] = []
         for r in data.get("organic_results", [])[:limit]:
-            items.append({
-                "title": r.get("title", ""),
-                "link": r.get("link", ""),
-                "snippet": r.get("snippet", ""),
-            })
+            items.append(
+                {
+                    "title": r.get("title", ""),
+                    "link": r.get("link", ""),
+                    "snippet": r.get("snippet", ""),
+                }
+            )
         return _format_results(items, limit)
 
     # DuckDuckGo Instant Answer API fallback

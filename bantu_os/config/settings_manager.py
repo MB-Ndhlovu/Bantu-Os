@@ -6,6 +6,7 @@ simple runtime-configurable settings persisted to a JSON file.
 
 Default file location: bantu_os/config/settings.json
 """
+
 from __future__ import annotations
 
 import json
@@ -14,7 +15,6 @@ from pathlib import Path
 from typing import Any, Dict
 
 from . import settings as runtime_settings
-
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "settings.json"
 

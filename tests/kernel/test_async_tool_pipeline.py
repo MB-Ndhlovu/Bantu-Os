@@ -7,16 +7,15 @@ Covers:
 - Tool result injection back into messages
 - Error handling for tool failures
 """
+
 import pytest
-from unittest.mock import AsyncMock
 
 from bantu_os.core.kernel.kernel import Kernel
-from bantu_os.core.kernel.providers.base import ChatMessage
-
 
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
+
 
 def echo_sync(value: str, times: int = 1) -> str:
     """Sync echo tool."""
@@ -37,6 +36,7 @@ async def flaky_async(value: str) -> str:
 # use_tool: sync tools
 # ------------------------------------------------------------------
 
+
 def test_use_tool_sync_success():
     kernel = Kernel(tools={"echo": echo_sync})
     result = kernel.use_tool("echo", value="hello", times=2)
@@ -52,6 +52,7 @@ def test_use_tool_sync_missing_raises():
 # ------------------------------------------------------------------
 # use_tool: async tools (via the sync wrapper)
 # ------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_use_tool_async_via_sync_interface():
@@ -84,6 +85,7 @@ def parse_tool_calls(text: str):
     results = []
     for m in TOOL_CALL_RE.finditer(pattern, text):
         import json
+
         name, args_json = m.groups()
         try:
             args = json.loads(args_json)
@@ -125,6 +127,7 @@ async def run_tools_async(kernel: Kernel, calls, max_iterations=5):
 # ------------------------------------------------------------------
 # Tool call detection + execution pipeline (mocked LLM)
 # ------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_async_tool_execution_pipeline_basic():
@@ -178,7 +181,7 @@ async def test_process_input_with_async_tool_roundtrip(monkeypatch):
         if call_count[0] == 1:
             # First turn: model requests a tool
             return {
-                "text": "[TOOL_CALL] echo_a args:{\"value\":\"ping\",\"times\":3} [/TOOL_CALL]",
+                "text": '[TOOL_CALL] echo_a args:{"value":"ping","times":3} [/TOOL_CALL]',
                 "raw": {},
             }
         else:

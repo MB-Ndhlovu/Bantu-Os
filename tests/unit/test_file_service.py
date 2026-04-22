@@ -1,9 +1,7 @@
 """
 Tests for services/file_service.py — FileService
 """
-import os
-import pytest
-import tempfile
+
 
 from bantu_os.services.file_service import FileService
 

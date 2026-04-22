@@ -28,12 +28,16 @@ def stub_llm_provider(monkeypatch):
         def __init__(self, model: str, **kwargs):
             self.model = model
 
-        async def generate(self, *, messages, temperature=0.7, max_tokens=None, **kwargs):
+        async def generate(
+            self, *, messages, temperature=0.7, max_tokens=None, **kwargs
+        ):
             # Default dummy behavior; individual tests typically patch kernel.llm.generate
             return {"text": "stub", "raw": {}}
 
     def _fake_build_provider(self, provider: str, model: str, **kwargs):
         return DummyProvider(model=model, **kwargs)
 
-    monkeypatch.setattr(LLMManager, "_build_provider", _fake_build_provider, raising=True)
+    monkeypatch.setattr(
+        LLMManager, "_build_provider", _fake_build_provider, raising=True
+    )
     yield

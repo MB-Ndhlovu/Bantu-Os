@@ -6,4 +6,4 @@ from .llm_manager import LLMManager
 from .services import ServiceManager
 from .kernel import Kernel
 
-__all__ = ['LLMManager', 'ServiceManager', 'Kernel']
+__all__ = ["LLMManager", "ServiceManager", "Kernel"]

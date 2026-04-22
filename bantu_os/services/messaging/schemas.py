@@ -2,6 +2,7 @@
 MessagingService tool schemas.
 Each schema follows the kernel tool executor format.
 """
+
 from __future__ import annotations
 
 TOOL_SCHEMAS = {
