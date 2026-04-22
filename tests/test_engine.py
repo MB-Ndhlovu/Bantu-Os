@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from bantu_os.ai.engine import AIEngine, BUILTIN_HANDLERS
+from bantu_os.ai.engine import BUILTIN_HANDLERS, AIEngine
 from bantu_os.ai.tools.schema import BUILTIN_TOOLS, Tool, ToolParam
 
 

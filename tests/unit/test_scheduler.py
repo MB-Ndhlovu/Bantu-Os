@@ -2,7 +2,7 @@
 Tests for the process scheduler.
 """
 
-from bantu_os.core.scheduler import Scheduler, ProcessState
+from bantu_os.core.scheduler import ProcessState, Scheduler
 
 
 def dummy_task():

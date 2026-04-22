@@ -6,10 +6,11 @@ This allows swapping to FAISS/Chroma/Qdrant later without touching Memory caller
 
 from __future__ import annotations
 
+import os
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
+
 import numpy as np
-import os
 
 from .vector_db import VectorDB  # existing simple in-memory DB
 

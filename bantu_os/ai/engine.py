@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 from bantu_os.core.kernel.llm_manager import LLMManager
 from bantu_os.core.kernel.providers.base import ChatMessage, GenerateResult
 
-from .tools.schema import Tool, BUILTIN_TOOLS
+from .tools.schema import BUILTIN_TOOLS, Tool
 
 
 # ------------------------------------------------------------------
@@ -293,7 +293,7 @@ class AIEngine:
         if name not in self._tool_map:
             return {"success": False, "error": f"Unknown tool: {name}"}
 
-        tool = self._tool_map[name]
+        self._tool_map[name]
         handler = BUILTIN_HANDLERS.get(name)
 
         if handler is None:

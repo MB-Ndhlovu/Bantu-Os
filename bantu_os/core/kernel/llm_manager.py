@@ -4,10 +4,10 @@ LLM Manager - Handles loading and managing language models.
 
 from __future__ import annotations
 
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 # Provider interfaces
-from .providers.base import LLMProvider, ChatMessage, GenerateResult
+from .providers.base import ChatMessage, GenerateResult, LLMProvider
 from .providers.openai_chat import OpenAIChatProvider
 from .providers.openrouter import OpenRouterProvider
 

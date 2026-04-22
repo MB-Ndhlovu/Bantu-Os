@@ -5,12 +5,12 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from pathlib import Path
-from typing import Optional, Dict, List, Any, Callable
-from datetime import datetime, timedelta
-from dataclasses import dataclass, field, asdict
-from enum import Enum
 import threading
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
 
 class ScheduleType(Enum):
@@ -294,7 +294,7 @@ class SchedulerService:
             # Update task run count and last run
             conn.execute(
                 """
-                UPDATE tasks 
+                UPDATE tasks
                 SET last_run = ?, run_count = run_count + 1, status = ?, error = ?
                 WHERE id = ?
             """,

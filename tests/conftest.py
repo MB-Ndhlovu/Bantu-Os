@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+
 import pytest
 
 # Ensure the project root (containing the bantu_os package) is on sys.path

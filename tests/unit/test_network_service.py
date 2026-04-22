@@ -2,7 +2,6 @@
 Tests for services/network_service.py — NetworkService
 """
 
-
 from bantu_os.services.network_service import NetworkService
 
 

@@ -2,7 +2,8 @@
 """Tool Executor - dispatches named tools with JSON args."""
 
 from __future__ import annotations
-from typing import Any, Dict, Optional, Callable
+
+from typing import Any, Callable, Dict, Optional
 
 
 class ToolExecutor:

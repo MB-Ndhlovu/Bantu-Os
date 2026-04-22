@@ -7,8 +7,8 @@ MessagingService : the service class
 TOOL_SCHEMAS     : dict of tool name → JSON schema
 """
 
-from bantu_os.services.messaging.messaging_service import MessagingService
 from bantu_os.services.messaging import schemas as schemas
+from bantu_os.services.messaging.messaging_service import MessagingService
 
 TOOL_SCHEMAS = schemas.TOOL_SCHEMAS
 

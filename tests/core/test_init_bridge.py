@@ -2,7 +2,7 @@
 Tests for bantu_os.core.init_bridge module.
 """
 
-from bantu_os.core.init_bridge import InitBridge, SOCKET_PATH
+from bantu_os.core.init_bridge import SOCKET_PATH, InitBridge
 
 
 class TestInitBridge:

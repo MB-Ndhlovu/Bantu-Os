@@ -14,7 +14,6 @@ from enum import Enum
 from typing import Any, Callable, Optional
 
 
-
 class AgentState(Enum):
     IDLE = "idle"
     THINKING = "thinking"
@@ -135,7 +134,7 @@ class TaskAgent(BaseAgent):
         }
 
     async def think(self, prompt: str) -> str:
-        lines = [l.strip() for l in prompt.split("\n") if l.strip()]
+        lines = [ln.strip() for ln in prompt.split("\n") if ln.strip()]
         return json.dumps({"tasks_created": len(lines), "tasks": lines})
 
 

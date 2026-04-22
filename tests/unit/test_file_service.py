@@ -2,7 +2,6 @@
 Tests for services/file_service.py — FileService
 """
 
-
 from bantu_os.services.file_service import FileService
 
 
@@ -17,7 +16,7 @@ class TestFileService:
     def test_write_file(self, tmp_path):
         svc = FileService()
         path = tmp_path / "written.txt"
-        result = svc.write_file(str(path), "test content")
+        svc.write_file(str(path), "test content")
         assert path.exists()
         assert path.read_text() == "test content"
 
@@ -25,7 +24,7 @@ class TestFileService:
         test_file = tmp_path / "delete_me.txt"
         test_file.write_text("to be deleted")
         svc = FileService()
-        result = svc.delete_file(str(test_file))
+        svc.delete_file(str(test_file))
         assert not test_file.exists()
 
     def test_list_directory(self, tmp_path):
@@ -38,7 +37,7 @@ class TestFileService:
     def test_create_directory(self, tmp_path):
         new_dir = tmp_path / "new_dir"
         svc = FileService()
-        result = svc.create_directory(str(new_dir))
+        svc.create_directory(str(new_dir))
         assert new_dir.exists() and new_dir.is_dir()
 
     def test_copy_file(self, tmp_path):
@@ -46,7 +45,7 @@ class TestFileService:
         dst = tmp_path / "dest.txt"
         src.write_text("copy me")
         svc = FileService()
-        result = svc.copy_file(str(src), str(dst))
+        svc.copy_file(str(src), str(dst))
         assert dst.exists()
         assert dst.read_text() == "copy me"
 
@@ -55,7 +54,7 @@ class TestFileService:
         dst = tmp_path / "new.txt"
         src.write_text("move me")
         svc = FileService()
-        result = svc.move_file(str(src), str(dst))
+        svc.move_file(str(src), str(dst))
         assert not src.exists()
         assert dst.exists()
 

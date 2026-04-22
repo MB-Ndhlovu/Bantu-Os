@@ -2,8 +2,8 @@
 Application settings and configuration.
 """
 
-from typing import Dict, Any, Optional
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 # Prefer pydantic-settings (Pydantic v2). Fallback to a no-op BaseSettings to avoid
 # hard dependency during testing if package is absent.

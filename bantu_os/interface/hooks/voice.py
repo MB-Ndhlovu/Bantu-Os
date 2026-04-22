@@ -3,7 +3,6 @@ Voice interface hooks (stub).
 """
 
 
-
 class VoiceInterface:
     """Placeholder for future voice-based interactions."""
 

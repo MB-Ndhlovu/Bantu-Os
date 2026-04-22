@@ -5,6 +5,7 @@ Tests for llm_manager — model loading, switching, and generation.
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 
 from bantu_os.core.kernel.llm_manager import LLMManager

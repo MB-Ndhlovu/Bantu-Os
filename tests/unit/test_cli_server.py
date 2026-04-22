@@ -4,6 +4,7 @@ Tests for cli/server.py — CLIServer
 
 import json
 import socket
+
 import pytest
 
 from bantu_os.cli.server import CLIServer

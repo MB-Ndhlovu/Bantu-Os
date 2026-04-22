@@ -7,13 +7,14 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
+
 import pytest
 
 from bantu_os.agents.scheduling_agent import (
-    SchedulingAgent,
     Event,
-    parse_natural_time,
+    SchedulingAgent,
     _ensure_db,
+    parse_natural_time,
 )
 
 # ---------------------------------------------------------------------------
@@ -211,7 +212,7 @@ class TestSchedulingAgent:
         agent.add_event(
             "Late meeting", "2026-04-17 18:00", now=datetime(2026, 4, 16, 10, 0)
         )
-        ids = [e.id for e in agent.list_events()]
+        [e.id for e in agent.list_events()]
         # Earlier event gets lower id but list is sorted by when_ts
         titles = [e.title for e in agent.list_events()]
         assert titles == ["Early meeting", "Late meeting"]

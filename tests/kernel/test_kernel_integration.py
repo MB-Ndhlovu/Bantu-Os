@@ -11,8 +11,8 @@ import pytest
 
 from bantu_os.core.kernel.kernel import Kernel
 from bantu_os.services.file_service import FileService
-from bantu_os.services.process_service import ProcessService
 from bantu_os.services.network_service import NetworkService
+from bantu_os.services.process_service import ProcessService
 
 
 @pytest.fixture
@@ -88,10 +88,10 @@ def test_file_service_copy_move(tmp_path, kernel_with_services):
     src = tmp_path / "source.txt"
     src.write_text("content")
 
-    copy_result = fs.copy(str(src), str(tmp_path / "dest.txt"))
+    fs.copy(str(src), str(tmp_path / "dest.txt"))
     assert (tmp_path / "dest.txt").read_text() == "content"
 
-    move_result = fs.move(str(tmp_path / "dest.txt"), str(tmp_path / "moved.txt"))
+    fs.move(str(tmp_path / "dest.txt"), str(tmp_path / "moved.txt"))
     assert not (tmp_path / "dest.txt").exists()
     assert (tmp_path / "moved.txt").read_text() == "content"
 

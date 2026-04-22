@@ -5,7 +5,8 @@ Tests for memory/knowledge_graph.py — KnowledgeGraph, KGNode, KGEdge.
 from __future__ import annotations
 
 import pytest
-from bantu_os.memory.knowledge_graph import KnowledgeGraph, KGNode, KGEdge
+
+from bantu_os.memory.knowledge_graph import KGEdge, KGNode, KnowledgeGraph
 
 
 class TestKGNode:

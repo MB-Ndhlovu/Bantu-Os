@@ -16,10 +16,11 @@ Helpers:
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+
 import numpy as np
 
-from .vector_store import VectorStore, ChromaVectorStore
 from .embeddings.base import EmbeddingsProvider
+from .vector_store import ChromaVectorStore, VectorStore
 
 
 class Memory:

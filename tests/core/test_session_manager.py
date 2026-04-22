@@ -2,17 +2,18 @@
 Tests for bantu_os.core.session_manager module.
 """
 
-import pytest
 import asyncio
 
+import pytest
+
 from bantu_os.core.session_manager import (
+    BudgetExceededError,
+    SessionError,
     SessionManager,
-    UserSession,
+    SessionNotFoundError,
     TokenBudget,
     ToolPermissions,
-    SessionError,
-    SessionNotFoundError,
-    BudgetExceededError,
+    UserSession,
 )
 
 

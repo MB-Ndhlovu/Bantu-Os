@@ -16,12 +16,12 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Callable, Dict, List, Optional
 
+from ...config import settings
+from ...memory import EmbeddingsProvider, Memory, OpenAIEmbeddingsProvider
 from .llm_manager import LLMManager
 from .providers.base import ChatMessage, GenerateResult
-from ...config import settings
-from ...memory import Memory, EmbeddingsProvider, OpenAIEmbeddingsProvider
 
 # Compiled once at module load — matches [TOOL_CALL] name args:{...} [/TOOL_CALL]
 _TOOL_CALL_RE = re.compile(

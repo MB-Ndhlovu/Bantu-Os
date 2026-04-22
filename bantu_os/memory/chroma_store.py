@@ -15,12 +15,10 @@ from typing import Any, Optional
 # ChromaDB (persistent vector store)
 try:
     import chromadb
-    from chromadb.config import Settings as ChromaSettings
 
     HAS_CHROMADB = True
 except ImportError:
     HAS_CHROMADB = False
-
 
 
 class ChromaStore:

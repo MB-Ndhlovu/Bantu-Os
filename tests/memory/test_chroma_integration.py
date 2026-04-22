@@ -1,8 +1,8 @@
-import pytest
 import numpy as np
+import pytest
 
-from bantu_os.memory.vector_store import ChromaVectorStore
 from bantu_os.memory.memory import Memory
+from bantu_os.memory.vector_store import ChromaVectorStore
 
 
 class DummyEmbeddings:
@@ -105,8 +105,8 @@ class TestChromaVectorStore:
 
 class TestMemoryWithChroma:
     def test_store_and_retrieve(self, memory):
-        id1 = memory.store_memory("I like chess", np.ones(128, dtype=np.float32) * 0.5)
-        id2 = memory.store_memory(
+        memory.store_memory("I like chess", np.ones(128, dtype=np.float32) * 0.5)
+        memory.store_memory(
             "chess is a strategy game", np.ones(128, dtype=np.float32) * 0.5
         )
         results = memory.store.search(

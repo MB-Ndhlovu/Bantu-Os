@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import signal
 import subprocess
-import psutil
-from typing import Optional, Dict, List, Any
-from datetime import datetime
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import psutil
 
 
 @dataclass

@@ -1,13 +1,14 @@
 # Bantu-OS Services Tests
 
-import pytest
 import os
+
+import pytest
 
 from bantu_os.services import (
     FileService,
+    NetworkService,
     ProcessService,
     SchedulerService,
-    NetworkService,
 )
 
 

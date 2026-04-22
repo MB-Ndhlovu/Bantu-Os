@@ -3,15 +3,15 @@
 
 from __future__ import annotations
 
+import json
 import socket
-import urllib.request
+import ssl
 import urllib.error
 import urllib.parse
-import json
-import ssl
-from typing import Optional, Dict, List, Any
-from datetime import datetime
+import urllib.request
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 
 @dataclass

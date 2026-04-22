@@ -5,14 +5,14 @@ Listens on Unix socket /tmp/bantu.sock for commands from the Rust shell.
 
 from __future__ import annotations
 
+import json
 import os
 import socket
 import threading
-import json
 from typing import Optional
 
-from bantu_os.core.kernel import Kernel
 from bantu_os.ai.service import AIService
+from bantu_os.core.kernel import Kernel
 
 
 class CLIServer:

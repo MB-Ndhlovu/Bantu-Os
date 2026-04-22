@@ -23,10 +23,10 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from .kernel import Kernel
 from ..memory import Memory
-from ..memory.vector_db import VectorDB
 from ..memory.knowledge_graph import KnowledgeGraph
+from ..memory.vector_db import VectorDB
+from .kernel import Kernel
 
 # ─── Exceptions ───────────────────────────────────────────────────────────────
 

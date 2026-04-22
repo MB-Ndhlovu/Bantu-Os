@@ -3,7 +3,7 @@ Interactive shell for Bantu OS.
 """
 
 import cmd
-from typing import Dict, Any
+from typing import Any, Dict
 
 
 class Shell(cmd.Cmd):

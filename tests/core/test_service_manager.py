@@ -5,8 +5,8 @@ Tests for ServiceManager.
 import pytest
 
 from bantu_os.core.kernel.services import (
-    ServiceManager,
     ServiceDescriptor,
+    ServiceManager,
     ServiceStatus,
 )
 

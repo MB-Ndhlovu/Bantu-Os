@@ -4,8 +4,9 @@ Tests for the CLI shell and commands.
 
 import sys
 from io import StringIO
+
+from bantu_os.interface.cli.commands import clear_screen, show_status, show_version
 from bantu_os.interface.cli.shell import Shell
-from bantu_os.interface.cli.commands import show_version, show_status, clear_screen
 
 
 class TestShellHelp:

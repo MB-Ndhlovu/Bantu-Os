@@ -2,7 +2,8 @@
 Vector Database - Simple in-memory vector store using list of dicts.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 
 

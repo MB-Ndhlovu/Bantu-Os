@@ -3,8 +3,8 @@ Module entrypoint to launch the Bantu OS CLI.
 Run with: python -m bantu_os
 """
 
+from bantu_os.interface.cli.commands import show_status, show_version
 from bantu_os.interface.cli.shell import run_shell
-from bantu_os.interface.cli.commands import show_version, show_status
 
 
 def main() -> None:

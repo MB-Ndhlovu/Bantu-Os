@@ -3,7 +3,6 @@ Text interface hooks (stub).
 """
 
 
-
 class TextInterface:
     """Placeholder for future text-based integrations (e.g., chat widgets)."""
 

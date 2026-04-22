@@ -23,7 +23,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from bantu_os.core.socket_server import SocketServer, ShellProtocol
+from bantu_os.core.socket_server import ShellProtocol, SocketServer
 
 # ---------------------------------------------------------------------------
 # Helpers

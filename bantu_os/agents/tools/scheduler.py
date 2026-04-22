@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional
 
-from ..scheduling_agent import SchedulingAgent
 from ...memory.memory import Memory
+from ..scheduling_agent import SchedulingAgent
 
 
 def make_scheduler_tools(

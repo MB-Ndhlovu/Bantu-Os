@@ -31,14 +31,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from bantu_os.core.kernel import Kernel
 from bantu_os.services.file_service import FileService
-from bantu_os.services.process_service import ProcessService
 from bantu_os.services.network_service import NetworkService
+from bantu_os.services.process_service import ProcessService
 
 # Phase 2: Messaging, Fintech, Crypto
 try:
-    from bantu_os.services.messaging import MessagingService
-    from bantu_os.services.fintech import FintechService
     from bantu_os.services.crypto import CryptoWalletService
+    from bantu_os.services.fintech import FintechService
+    from bantu_os.services.messaging import MessagingService
 
     _PHASE2_AVAILABLE = True
 except ImportError:
@@ -46,8 +46,8 @@ except ImportError:
 
 # Phase 3: IoT, Hardware
 try:
-    from bantu_os.services.iot import IoTService
     from bantu_os.services.hardware import HardwareService
+    from bantu_os.services.iot import IoTService
 
     _IOT_AVAILABLE = True
     _HARDWARE_AVAILABLE = True

@@ -7,8 +7,8 @@ FintechService : the service class
 TOOL_SCHEMAS   : dict of tool name → JSON schema
 """
 
-from bantu_os.services.fintech.fintech_service import FintechService
 from bantu_os.services.fintech import schemas as schemas
+from bantu_os.services.fintech.fintech_service import FintechService
 
 TOOL_SCHEMAS = schemas.TOOL_SCHEMAS
 

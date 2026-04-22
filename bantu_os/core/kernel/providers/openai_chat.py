@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 
 import aiohttp
 
-from .base import LLMProvider, ChatMessage, GenerateResult
+from .base import ChatMessage, GenerateResult, LLMProvider
 
 
 class OpenAIChatProvider(LLMProvider):
