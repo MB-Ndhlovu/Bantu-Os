@@ -22,6 +22,7 @@ import asyncio
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+from pathlib import Path
 
 from ..memory import Memory
 from ..memory.knowledge_graph import KnowledgeGraph
@@ -199,6 +200,14 @@ class UserSession:
     _memory: Optional[Memory] = None
     _budget: TokenBudget = field(default_factory=TokenBudget)
     _permissions: ToolPermissions = field(default_factory=ToolPermissions)
+    _sandbox_path: str = "/home/workspace/bantu_users"
+
+    @property
+    def sandbox_path(self) -> Path:
+        """Per-user sandbox directory, created on first access."""
+        p = Path(self._sandbox_path) / self.username
+        p.mkdir(parents=True, exist_ok=True)
+        return p
 
     @property
     def kernel(self) -> Kernel:

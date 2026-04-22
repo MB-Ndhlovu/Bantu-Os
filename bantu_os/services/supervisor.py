@@ -196,7 +196,7 @@ class Supervisor:
 
     async def _wait_pid(self, pid: int) -> None:
         """Wait for a process to exit."""
-# loop acquired implicitly by asyncio.wait_for
+        # loop acquired implicitly by asyncio.wait_for
         while True:
             try:
                 os.kill(pid, 0)

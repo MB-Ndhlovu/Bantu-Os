@@ -44,6 +44,7 @@ from bantu_os.core.session_manager import (
 from bantu_os.services.file_service import FileService
 from bantu_os.services.network_service import NetworkService
 from bantu_os.services.process_service import ProcessService
+from bantu_os.services.sandboxed_file_service import SandboxedFileService
 
 # Phase 2: Messaging, Fintech, Crypto
 try:
@@ -363,6 +364,9 @@ class ShellProtocol(asyncio.Protocol):
                 }
 
             instance = tool_class()
+            # For file tool with a logged-in session, use the sandboxed version
+            if tool_name == "file" and self._session is not None:
+                instance = SandboxedFileService(str(self._session.sandbox_path))
             method = getattr(instance, method_name)
             result = method(**tool_args)
 
