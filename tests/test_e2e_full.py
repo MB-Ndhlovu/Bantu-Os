@@ -39,6 +39,8 @@ def socket_server():
     env = dict(os.environ)
     env["PYTHONPATH"] = str(PROJECT_ROOT)
     env["PYTHONWARNINGS"] = "ignore"
+    env["BANTU_SOCK_PATH"] = SOCKET_PATH  # override the default /tmp/bantu.sock
+    env["BANTU_TCP_PORT"] = str(TCP_PORT)
 
     proc = subprocess.Popen(
         [sys.executable, "-m", "bantu_os.core.socket_server"],
