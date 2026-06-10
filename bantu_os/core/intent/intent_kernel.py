@@ -65,11 +65,16 @@ class IntentKernel:
         if node.tool and hasattr(self.agent_manager, "_execute_tool_call"):
             outcome = await self.agent_manager._execute_tool_call(node.tool, node.tool_params or {})
             if isinstance(outcome, str):
+                if outcome.lower().startswith("unknown tool"):
+                    return str(await self.agent_manager.execute(node.text))
                 return outcome
             if isinstance(outcome, dict):
+                error = str(outcome.get("error", ""))
                 if outcome.get("ok") is True and "result" in outcome:
                     return str(outcome["result"])
-                raise RuntimeError(str(outcome.get("error", "Tool execution failed")))
+                if "unknown tool" in error.lower():
+                    return str(await self.agent_manager.execute(node.text))
+                raise RuntimeError(error or "Tool execution failed")
         if hasattr(self.agent_manager, "execute"):
             return str(await self.agent_manager.execute(node.text))
         raise RuntimeError("No execution backend configured")

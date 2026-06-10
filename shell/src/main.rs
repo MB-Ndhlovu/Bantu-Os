@@ -161,10 +161,10 @@ fn process_input(input: &str, registry: &tools::ToolRegistry) -> Option<String> 
             std::io::stdout().flush().ok();
             return None;
         }
-        "ai" => return Some("Usage: ai <your message>. Or type 'ai on' for persistent AI mode.".to_string()),
+        "ai" => return Some("Usage: ai <your message>. Or type 'ai on' for persistent goal mode.".to_string()),
         "ai on" => {
             AI_MODE.store(true, Ordering::SeqCst);
-            return Some("AI mode enabled. Chat naturally or type 'ai off' to return to shell mode.".to_string());
+            return Some("AI mode enabled. Speak your goal naturally or type 'ai off' to return to shell mode.".to_string());
         }
         "ai off" => {
             AI_MODE.store(false, Ordering::SeqCst);
@@ -244,7 +244,7 @@ fn handle_ai_input(input: &str) {
         }
     };
 
-    let request = serde_json::json!({"cmd": "ai", "text": query});
+    let request = serde_json::json!({"cmd": "intent", "text": query});
     let msg = serde_json::to_string(&request).unwrap();
     if let Err(e) = sock.write_all(msg.as_bytes()).and_then(|_| sock.write_all(b"\n")) {
         println!("AI unavailable: write failed ({})", e);
@@ -261,10 +261,19 @@ fn handle_ai_input(input: &str) {
     }
 
     if let Ok(resp) = serde_json::from_str::<serde_json::Value>(&response) {
-        if resp["ok"].as_bool() == Some(true) {
-            println!("{}", resp["result"].as_str().unwrap_or("(no response)"));
-        } else {
-            println!("AI error: {}", resp["error"].as_str().unwrap_or("unknown"));
+        match resp["type"].as_str() {
+            Some("clarification_needed") => {
+                println!("{}", resp["question"].as_str().unwrap_or("Could you clarify?"));
+            }
+            Some("goal_complete") => {
+                println!("{}", resp["summary"].as_str().unwrap_or("(no response)"));
+            }
+            _ if resp["ok"].as_bool() == Some(true) => {
+                println!("{}", resp["result"].as_str().unwrap_or("(no response)"));
+            }
+            _ => {
+                println!("AI error: {}", resp["error"].as_str().unwrap_or("unknown"));
+            }
         }
     } else {
         println!("AI: (invalid response)");
@@ -322,7 +331,7 @@ fn get_shell_help() -> String {
     }
     help.push_str("\nQUICK TIPS:\n");
     help.push_str("  ai <message>   Ask the AI anything\n");
-    help.push_str("  ai on          Persistent AI conversation mode\n");
+    help.push_str("  ai on          Persistent goal mode\n");
     help.push_str("  Up/Down arrows Navigate command history\n");
     help
 }

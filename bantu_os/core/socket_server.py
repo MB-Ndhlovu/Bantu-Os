@@ -35,6 +35,8 @@ from typing import Optional
 # Ensure the project root is on the path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from bantu_os.agents.agent_manager import AgentManager
+from bantu_os.core.intent import IntentKernel
 from bantu_os.core.kernel import Kernel
 from bantu_os.core.session_manager import (
     BudgetExceededError,
@@ -119,6 +121,26 @@ def make_kernel(session: Optional[UserSession] = None) -> Kernel:
     return kernel
 
 
+def make_agent_manager(session: Optional[UserSession] = None) -> AgentManager:
+    kernel = make_kernel(session)
+    agent = AgentManager(kernel=kernel)
+    for name, fn in {
+        "file": FileService,
+        "process": ProcessService,
+        "network": NetworkService,
+    }.items():
+        agent.register_tool(name, fn)
+    if _PHASE2_AVAILABLE:
+        agent.register_tool("messaging", MessagingService)
+        agent.register_tool("fintech", FintechService)
+        agent.register_tool("crypto", CryptoWalletService)
+    if _IOT_AVAILABLE:
+        agent.register_tool("iot", IoTService)
+    if _HARDWARE_AVAILABLE:
+        agent.register_tool("hardware", HardwareService)
+    return agent
+
+
 # ---------------------------------------------------------------------------
 # Per-client protocol handler
 # ---------------------------------------------------------------------------
@@ -145,6 +167,8 @@ class ShellProtocol(asyncio.Protocol):
         "session_id",
         "_kernel",
         "_session",
+        "_agent_manager",
+        "_intent_kernel",
     )
 
     def __init__(
@@ -159,14 +183,26 @@ class ShellProtocol(asyncio.Protocol):
         self.session_id: Optional[str] = None
         self._kernel: Optional[Kernel] = None
         self._session: Optional[UserSession] = None
-
-    # ── Kernel lazy-init ─────────────────────────────────────────────────────
+        self._agent_manager: Optional[AgentManager] = None
+        self._intent_kernel: Optional[IntentKernel] = None
 
     @property
     def kernel(self) -> Kernel:
         if self._kernel is None:
             self._kernel = make_kernel(self._session)
         return self._kernel
+
+    @property
+    def agent_manager(self) -> AgentManager:
+        if self._agent_manager is None:
+            self._agent_manager = make_agent_manager(self._session)
+        return self._agent_manager
+
+    @property
+    def intent_kernel(self) -> IntentKernel:
+        if self._intent_kernel is None:
+            self._intent_kernel = IntentKernel(agent_manager=self.agent_manager)
+        return self._intent_kernel
 
     # ── Transport ────────────────────────────────────────────────────────────
 
@@ -201,6 +237,18 @@ class ShellProtocol(asyncio.Protocol):
             await self._send({"ok": True, "result": "pong"})
             return
 
+        if cmd == "intent":
+            text = request.get("text", "")
+            if not text:
+                await self._send({"ok": False, "error": "text is required"})
+                return
+            try:
+                response = await self.intent_kernel.receive(text, context={"session_id": self.session_id})
+                await self._send(response)
+            except Exception as e:
+                await self._send({"ok": False, "error": str(e)})
+            return
+
         # ── Session commands ────────────────────────────────────────────────
 
         if cmd == "login":
@@ -213,6 +261,8 @@ class ShellProtocol(asyncio.Protocol):
                 self.session_id = session.session_id
                 self._session = session
                 self._kernel = None  # rebuild kernel with session memory
+                self._agent_manager = None
+                self._intent_kernel = None
                 await self._send(
                     {
                         "ok": True,
@@ -230,6 +280,8 @@ class ShellProtocol(asyncio.Protocol):
             self.session_id = None
             self._session = None
             self._kernel = None
+            self._agent_manager = None
+            self._intent_kernel = None
             await self._send({"ok": True, "result": "Logged out."})
             return
 
@@ -294,10 +346,8 @@ class ShellProtocol(asyncio.Protocol):
 
             try:
                 if self._session:
-                    # Route through session for persistent context
                     result = await self._session.run(text)
                 else:
-                    # Guest — no session, just kernel
                     result = await self.kernel.process_input(text)
                 await self._send({"ok": True, "result": result})
             except BudgetExceededError:
@@ -318,7 +368,6 @@ class ShellProtocol(asyncio.Protocol):
             method_name = request.get("method", "")
             tool_args = request.get("args", {})
 
-            # Check permissions if session is logged in
             if self._session:
                 permissions = self._session.permissions
                 if not permissions.can_use(tool_name):
