@@ -14,3 +14,10 @@ async def test_goal_planner_builds_tree():
     tree = await planner.decompose("deploy")
     assert tree.root_goal == "deploy"
     assert tree.root.children[0].text == "test"
+
+
+@pytest.mark.asyncio
+async def test_goal_planner_validation_rejects_unknown_tool():
+    planner = GoalPlanner(llm_manager=DummyLLM(), available_tools=["file"])
+    with pytest.raises(ValueError):
+        await planner.decompose("deploy")

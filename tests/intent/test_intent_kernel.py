@@ -20,3 +20,15 @@ async def test_intent_kernel_executes_goal_tree():
     result = await kernel.receive("deploy project")
     assert result["type"] == "goal_complete"
     assert "deploy project" in result["summary"]
+
+
+@pytest.mark.asyncio
+async def test_intent_kernel_uses_direct_agent_fallback():
+    class FallbackAgent(AgentManager):
+        async def _execute_tool_call(self, tool_name, args):
+            return f"{tool_name}:{args['value']}"
+
+    agent = FallbackAgent()
+    kernel = IntentKernel(agent_manager=agent, planner=StubPlanner())
+    result = await kernel.receive("deploy project")
+    assert result["type"] == "goal_complete"

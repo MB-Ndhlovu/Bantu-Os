@@ -15,3 +15,10 @@ def test_goal_node_round_trip():
 def test_goal_status_values():
     assert GoalStatus.PENDING.value == "PENDING"
     assert GoalStatus.DONE.value == "DONE"
+
+
+def test_goal_tree_leaf_nodes():
+    root = GoalNode(text="root", level=0)
+    root.add_child(GoalNode(text="leaf", level=1))
+    tree = GoalTree(root=root)
+    assert [node.text for node in tree.leaf_nodes()] == ["leaf"]

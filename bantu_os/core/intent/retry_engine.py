@@ -18,3 +18,16 @@ class RetryEngine:
         node.retry_history.append(RetryRecord(reason="retry", error=error, attempted_plan=node.text))
         node.retry_count += 1
         return RetryDecision(True, "Retry scheduled")
+
+    def replan(self, node: GoalNode, error: str) -> GoalNode:
+        decision = self.decide(node, error)
+        if not decision.should_retry:
+            node.mark_failed(error)
+            return node
+        if not node.children:
+            node.tool = None
+            node.tool_params = None
+            node.children = [
+                GoalNode(text=f"Retry: {node.text}", level=node.level + 1, parent_id=node.id)
+            ]
+        return node
