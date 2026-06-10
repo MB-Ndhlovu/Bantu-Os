@@ -1,0 +1,25 @@
+{
+  "name": "Bantu-OS",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
+    },
+    "ghcr.io/devcontainers/features/rust:1": {
+      "version": "stable"
+    }
+  },
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y gcc build-essential && pip install -e . && cd shell && cargo build --release && cd ../init && make",
+  "remoteUser": "vscode",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "rust-lang.rust-analyzer",
+        "ms-vscode.cpptools",
+        "tamasfe.even-better-toml",
+        "github.vscode-pull-request-github"
+      ]
+    }
+  }
+}

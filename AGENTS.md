@@ -42,19 +42,18 @@ BASE:    Linux Kernel
 
 ## What to Build Next (Priority Order)
 
-1. ~~Shell-to-kernel socket connection (Rust shell → Python kernel over Unix socket)~~ ✅ DONE
-   - `bantu_os/core/socket_server.py` — dual Unix socket (`/tmp/bantu.sock`) + TCP (`127.0.0.1:18792`)
-   - `tests/kernel/test_socket_server.py` — 18 integration tests passing
-   - Tool protocol: `{"cmd": "tool", "tool": "file|process|network", "method": "method_name", "args": {...}}`
-   - AI protocol unchanged: `{"cmd": "ai", "text": "..."}`
-2. ~~AI-native shell UX (polish REPL, history, tab completion)~~ ✅ DONE
-   - Persistent history, clear/status commands, better AI mode UX
-   - `tests/test_e2e_shell_kernel.py` — end-to-end smoke test
-3. ~~C init integration (InitBridge for service registry)~~ ✅ DONE
-   - `bantu_os/core/init_bridge.py` — Python service registration with C init
-   - Graceful shutdown via SIGTERM propagation from C init → services
-   - Still to do: wire init_bridge heartbeat into SocketServer (background task)
-4. Phase 2: Connectivity (messaging, fintech APIs, crypto wallet)
+1. Phase 1 — Foundation: COMPLETE
+   - C init, Rust shell, Python AI engine, services, and memory are all implemented and working.
+2. Phase 2 — Connectivity: COMPLETE
+   - Messaging, fintech APIs, and crypto wallet capabilities are in place.
+3. Phase 3 — Ecosystem: COMPLETE
+   - IoT, hardware monitoring, multi-user sessions, and ServiceManager are implemented.
+4. Phase 4 — Scale: IN PROGRESS
+   - Raspberry Pi hardware prototype integration
+   - Enterprise partnership groundwork
+   - Global rollout preparation
+   - AI shell UX polish (REPL history, tab completion)
+   - C init ↔ Python service registry wiring
 
 ## Commit Convention
 

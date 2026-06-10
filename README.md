@@ -10,6 +10,7 @@ Bantu-OS is a Linux-based, AI-native operating system that reimagines how humans
 [![Status: Pre-alpha](https://img.shields.io/badge/Status-Pre--alpha-red)](README.md)
 [![Architecture: Linux-based](https://img.shields.io/badge/Arch-Linux--based-brightgreen)](README.md)
 [![Language: C + Rust + Python](https://img.shields.io/badge/Lang-C%2C%20Rust%2C%20Python-yellow)](README.md)
+[![CI](https://github.com/MB-Ndhlovu/Bantu-Os/actions/workflows/ci.yml/badge.svg)](https://github.com/MB-Ndhlovu/Bantu-Os/actions/workflows/ci.yml)
 
 ---
 
