@@ -39,15 +39,23 @@ class GoalPlanner:
         self,
         llm_manager: Any | None = None,
         available_tools: Iterable[str] | None = None,
+        memory: Any | None = None,
+        memory_top_k: int = 3,
         max_leaf_nodes: int = 12,
         max_nesting: int = 3,
     ) -> None:
         self.llm_manager = llm_manager
         self.available_tools = set(available_tools or [])
+        self.memory = memory
+        self.memory_top_k = memory_top_k
         self.max_leaf_nodes = max_leaf_nodes
         self.max_nesting = max_nesting
 
-    def _build_messages(self, goal_text: str, context: dict[str, Any] | None = None) -> list[dict[str, str]]:
+    async def _build_messages(
+        self,
+        goal_text: str,
+        context: dict[str, Any] | None = None,
+    ) -> list[dict[str, str]]:
         schema = {
             "root_goal": "string",
             "steps": [
@@ -69,19 +77,59 @@ class GoalPlanner:
             f"{json.dumps(schema)}"
         )
         messages = [{"role": "system", "content": system}]
+
         if context:
-            messages.append({"role": "system", "content": f"Context: {json.dumps(context, default=str)}"})
+            messages.append(
+                {
+                    "role": "system",
+                    "content": f"Execution context: {json.dumps(context, default=str)}",
+                }
+            )
+
+        memory_snippets = await self._memory_snippets(goal_text)
+        if memory_snippets:
+            messages.append(
+                {
+                    "role": "system",
+                    "content": "Relevant memory items (most similar first):\n"
+                    + "\n".join(f"- {snippet}" for snippet in memory_snippets),
+                }
+            )
+
         messages.append({"role": "user", "content": goal_text})
         return messages
 
-    async def decompose(self, goal_text: str, context: dict[str, Any] | None = None) -> GoalTree:
+    async def _memory_snippets(self, goal_text: str) -> list[str]:
+        if self.memory is None or not hasattr(self.memory, "retrieve_memory"):
+            return []
+        try:
+            results = await self.memory.retrieve_memory(goal_text, top_k=self.memory_top_k)
+        except Exception:
+            return []
+
+        snippets: list[str] = []
+        for item in results[: self.memory_top_k]:
+            if isinstance(item, dict):
+                text = item.get("text") or item.get("content") or ""
+                snippet = str(text).strip()
+            else:
+                snippet = str(item).strip()
+            if snippet:
+                snippets.append(snippet)
+        return snippets
+
+    async def decompose(
+        self,
+        goal_text: str,
+        context: dict[str, Any] | None = None,
+    ) -> GoalTree:
         if self.llm_manager is None or not hasattr(self.llm_manager, "generate"):
             return self._fallback_tree(goal_text, context or {})
 
         validation_error: str | None = None
         last_error: Exception | None = None
         for _ in range(3):
-            messages = self._build_messages(goal_text, context)
+            messages = await self._build_messages(goal_text, context)
             if validation_error:
                 messages.insert(
                     1,
@@ -160,4 +208,16 @@ class GoalPlanner:
     @staticmethod
     def _is_destructive(text: str, tool: Optional[str]) -> bool:
         haystack = f"{text} {tool or ''}".lower()
-        return any(token in haystack for token in ["delete", "remove", "destroy", "kill", "rm -rf", "payment", "send message", "network send"])
+        return any(
+            token in haystack
+            for token in [
+                "delete",
+                "remove",
+                "destroy",
+                "kill",
+                "rm -rf",
+                "payment",
+                "send message",
+                "network send",
+            ]
+        )

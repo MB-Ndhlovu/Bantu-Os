@@ -32,3 +32,17 @@ async def test_intent_kernel_uses_direct_agent_fallback():
     kernel = IntentKernel(agent_manager=agent, planner=StubPlanner())
     result = await kernel.receive("deploy project")
     assert result["type"] == "goal_complete"
+
+
+@pytest.mark.asyncio
+async def test_intent_kernel_clarification_path():
+    class ClarifyPlanner:
+        async def decompose(self, text, context=None):
+            root = GoalNode(text=text, level=0)
+            return GoalTree(root=root, clarification_needed=True, clarification_question="Which one?")
+
+    agent = AgentManager()
+    kernel = IntentKernel(agent_manager=agent, planner=ClarifyPlanner())
+    result = await kernel.receive("deploy project")
+    assert result["type"] == "clarification_needed"
+    assert result["question"] == "Which one?"

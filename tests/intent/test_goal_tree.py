@@ -22,3 +22,11 @@ def test_goal_tree_leaf_nodes():
     root.add_child(GoalNode(text="leaf", level=1))
     tree = GoalTree(root=root)
     assert [node.text for node in tree.leaf_nodes()] == ["leaf"]
+
+
+def test_goal_tree_context_preserved():
+    root = GoalNode(text="root", level=0)
+    tree = GoalTree(root=root, context={"session_id": "abc"})
+    payload = tree.to_dict()
+    restored = GoalTree.from_dict(payload)
+    assert restored.context["session_id"] == "abc"

@@ -17,9 +17,12 @@ class IntentKernel:
         renderer: IntentRenderer | None = None,
     ) -> None:
         self.agent_manager = agent_manager
+        kernel = getattr(agent_manager, "kernel", None)
         self.planner = planner or GoalPlanner(
-            llm_manager=getattr(getattr(agent_manager, "kernel", None), "llm", None),
+            llm_manager=getattr(kernel, "llm", None),
             available_tools=getattr(agent_manager, "tools", {}).keys(),
+            memory=getattr(kernel, "memory", None),
+            memory_top_k=getattr(kernel, "memory_top_k", 3),
         )
         self.renderer = renderer or IntentRenderer()
 

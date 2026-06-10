@@ -18,7 +18,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Bantu-OS Shell v0.1.0 — AI-powered REPL");
     println!("Type 'help' for commands, or chat naturally with the AI.\n");
 
-    // Pipe mode: read stdin line-by-line, process each, then exit
     if !atty::is(atty::Stream::Stdin) {
         let registry = tools::ToolRegistry::new();
         check_kernel_status();
@@ -39,8 +38,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let registry = tools::ToolRegistry::new();
-
-    // Set up rustyline editor with file-backed history
     let mut editor = match setup_editor() {
         Ok(ed) => ed,
         Err(e) => {
@@ -92,8 +89,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn setup_editor() -> rustyline::Result<rustyline::Editor<(), rustyline::history::MemHistory>> {
     let mut editor = rustyline::Editor::new()?;
-
-    // Load existing history from file
     if let Ok(content) = std::fs::read_to_string(HISTORY_FILE) {
         for line in content.lines() {
             if !line.is_empty() {
@@ -101,7 +96,6 @@ fn setup_editor() -> rustyline::Result<rustyline::Editor<(), rustyline::history:
             }
         }
     }
-
     Ok(editor)
 }
 
@@ -145,7 +139,6 @@ fn run_simple_loop(registry: &tools::ToolRegistry) {
 fn process_input(input: &str, registry: &tools::ToolRegistry) -> Option<String> {
     let trimmed = input.trim();
 
-    // Pipe mode: detect raw JSON from stdin and forward directly to kernel
     if trimmed.starts_with('{') {
         return Some(handle_raw_json(trimmed));
     }
@@ -201,15 +194,17 @@ fn process_input(input: &str, registry: &tools::ToolRegistry) -> Option<String> 
     }
 
     match parser::parse(trimmed) {
-        Ok(call) => {
-            match registry.execute(&call.tool, &call.args) {
-                Ok(output) => if output.is_empty() { None } else { Some(output) },
-                Err(e) => Some(format!("Error: {:?}", e)),
-            }
-        }
+        Ok(call) => match registry.execute(&call.tool, &call.args) {
+            Ok(output) => if output.is_empty() { None } else { Some(output) },
+            Err(e) => Some(format!("Error: {:?}", e)),
+        },
         Err(_) => {
-            let output = Command::new("sh").arg("-c").arg(trimmed)
-                .stdout(Stdio::piped()).stderr(Stdio::piped()).output();
+            let output = Command::new("sh")
+                .arg("-c")
+                .arg(trimmed)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .output();
             match output {
                 Ok(out) => {
                     if out.status.success() {
@@ -219,7 +214,9 @@ fn process_input(input: &str, registry: &tools::ToolRegistry) -> Option<String> 
                         let stderr = String::from_utf8_lossy(&out.stderr);
                         if stderr.is_empty() {
                             Some(format!("Command exited with code {}", out.status.code().unwrap_or(1)))
-                        } else { Some(stderr.to_string()) }
+                        } else {
+                            Some(stderr.to_string())
+                        }
                     }
                 }
                 Err(e) => Some(format!("Could not execute: {}", e)),
@@ -280,8 +277,6 @@ fn handle_ai_input(input: &str) {
     }
 }
 
-/// Handle raw JSON input piped from stdin (pipe mode).
-/// Directly forwards the JSON to the kernel socket and prints the result.
 fn handle_raw_json(json_input: &str) -> String {
     let mut sock = match std::os::unix::net::UnixStream::connect(SOCKET_PATH) {
         Ok(s) => s,
@@ -336,7 +331,6 @@ fn get_shell_help() -> String {
     help
 }
 
-/// Send a JSON command to the kernel socket and return the result string.
 fn send_kernel_cmd(json_cmd: &str) -> Option<String> {
     let mut sock = match std::os::unix::net::UnixStream::connect(SOCKET_PATH) {
         Ok(s) => s,

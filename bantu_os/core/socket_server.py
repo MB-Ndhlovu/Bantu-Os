@@ -9,6 +9,7 @@ Supports two protocols:
 Protocol:
   Send JSON on one line, receive JSON on one line.
   Request (ai):    {"cmd": "ai", "text": "hello"}
+  Request (intent):{"cmd": "intent", "text": "get my project ready to deploy"}
   Request (tool):  {"cmd": "tool", "tool": "file", "method": "read", "args": {"path": "/tmp/test.txt"}}
   Request (ping):  {"cmd": "ping"}
   Session commands: {"cmd": "login", "username": "alice"}
@@ -204,8 +205,6 @@ class ShellProtocol(asyncio.Protocol):
             self._intent_kernel = IntentKernel(agent_manager=self.agent_manager)
         return self._intent_kernel
 
-    # ── Transport ────────────────────────────────────────────────────────────
-
     def connection_made(self, transport: asyncio.Transport) -> None:
         self.transport = transport
 
@@ -220,8 +219,6 @@ class ShellProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         self.transport = None
-
-    # ── Command router ────────────────────────────────────────────────────────
 
     async def _process(self, line: str) -> None:
         """Parse one JSON line, handle the command, send response."""
@@ -243,13 +240,13 @@ class ShellProtocol(asyncio.Protocol):
                 await self._send({"ok": False, "error": "text is required"})
                 return
             try:
-                response = await self.intent_kernel.receive(text, context={"session_id": self.session_id})
+                response = await self.intent_kernel.receive(
+                    text, context={"session_id": self.session_id}
+                )
                 await self._send(response)
             except Exception as e:
                 await self._send({"ok": False, "error": str(e)})
             return
-
-        # ── Session commands ────────────────────────────────────────────────
 
         if cmd == "login":
             username = request.get("username", "").strip()
@@ -260,7 +257,7 @@ class ShellProtocol(asyncio.Protocol):
                 session = await self.session_manager.create_session(username)
                 self.session_id = session.session_id
                 self._session = session
-                self._kernel = None  # rebuild kernel with session memory
+                self._kernel = None
                 self._agent_manager = None
                 self._intent_kernel = None
                 await self._send(
@@ -336,8 +333,6 @@ class ShellProtocol(asyncio.Protocol):
             )
             return
 
-        # ── AI command ──────────────────────────────────────────────────────
-
         if cmd == "ai":
             text = request.get("text", "")
             if not text:
@@ -360,8 +355,6 @@ class ShellProtocol(asyncio.Protocol):
             except Exception as e:
                 await self._send({"ok": False, "error": str(e)})
             return
-
-        # ── Tool command ──────────────────────────────────────────────────────
 
         if cmd == "tool":
             tool_name = request.get("tool", "")
@@ -390,8 +383,6 @@ class ShellProtocol(asyncio.Protocol):
 
         await self._send({"ok": False, "error": f"Unknown cmd: {cmd}"})
 
-    # ── Tool execution ─────────────────────────────────────────────────────────
-
     async def _execute_tool(
         self, tool_name: str, method_name: str, tool_args: dict
     ) -> dict:
@@ -413,7 +404,6 @@ class ShellProtocol(asyncio.Protocol):
                 }
 
             instance = tool_class()
-            # For file tool with a logged-in session, use the sandboxed version
             if tool_name == "file" and self._session is not None:
                 instance = SandboxedFileService(str(self._session.sandbox_path))
             method = getattr(instance, method_name)
@@ -434,29 +424,14 @@ class ShellProtocol(asyncio.Protocol):
         except Exception as e:
             return {"ok": False, "error": f"{tool_name}.{method_name} failed: {e}"}
 
-    # ── Response writer ───────────────────────────────────────────────────────
-
     async def _send(self, payload: dict) -> None:
-        """Serialize dict to JSON line and write to transport."""
         if self.transport is None:
             return
         data = json.dumps(payload).encode("utf-8") + b"\n"
         self.transport.write(data)
 
 
-# ---------------------------------------------------------------------------
-# Server
-# ---------------------------------------------------------------------------
-
-
 class SocketServer:
-    """
-    Manages both Unix-domain and TCP socket servers for the shell bridge.
-
-    Holds a shared SessionManager so all connections share the same session
-    state across the machine.
-    """
-
     def __init__(
         self,
         unix_path: str | None = None,
@@ -482,7 +457,6 @@ class SocketServer:
         return self._session_manager
 
     async def _make_protocol_factory(self):
-        """Return a factory that creates ShellProtocol with shared session manager."""
         loop = asyncio.get_running_loop()
 
         def factory() -> ShellProtocol:
@@ -491,7 +465,6 @@ class SocketServer:
         return factory
 
     async def _run_unix_server(self) -> None:
-        """Start Unix-domain socket server on self.unix_path."""
         if os.path.exists(self.unix_path):
             os.unlink(self.unix_path)
 
@@ -506,7 +479,6 @@ class SocketServer:
         print(f"Unix socket listening on {self.unix_path}", flush=True)
 
     async def _run_tcp_server(self) -> None:
-        """Start TCP socket server on self.tcp_host:self.tcp_port."""
         loop = asyncio.get_running_loop()
         factory = await self._make_protocol_factory()
 
@@ -522,7 +494,6 @@ class SocketServer:
                 break
 
     async def run(self) -> None:
-        """Start both servers and run until shutdown is signalled."""
         loop = asyncio.get_running_loop()
 
         for sig in (signal.SIGINT, signal.SIGTERM):
@@ -539,7 +510,6 @@ class SocketServer:
         await self._shutdown_event.wait()
 
     async def shutdown(self, sig: Optional[signal.Signals] = None) -> None:
-        """Graceful shutdown: stop servers, unlink socket, set event."""
         if sig is not None:
             name = sig.name if hasattr(sig, "name") else str(sig)
             print(f"\nShutdown requested ({name})…", flush=True)
@@ -564,11 +534,6 @@ class SocketServer:
                 pass
 
         print("Shell bridge stopped.", flush=True)
-
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
 
 
 async def main() -> None:
