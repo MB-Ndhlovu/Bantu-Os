@@ -4,6 +4,7 @@
 use std::io::{self, Read, Write};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use rustyline::history::History;
 
 mod parser;
@@ -240,43 +241,97 @@ fn handle_ai_input(input: &str) {
             return;
         }
     };
-
-    let request = serde_json::json!({"cmd": "intent", "text": query});
+    let request = serde_json::json!({"cmd": "intent", "text": query, "stream": true});
     let msg = serde_json::to_string(&request).unwrap();
     if let Err(e) = sock.write_all(msg.as_bytes()).and_then(|_| sock.write_all(b"\n")) {
         println!("AI unavailable: write failed ({})", e);
         return;
     }
-
-    let mut response = String::new();
-    match sock.read_to_string(&mut response) {
-        Ok(_) => {}
-        Err(e) => {
-            println!("AI unavailable: read failed ({})", e);
-            return;
+    // After sending the request, take a separate read-only view of the socket
+    // for streaming responses. The original `sock` keeps write access so we can
+    // answer confirmation prompts on the same connection.
+    let read_stream = sock.try_clone().expect("clone socket for read half");
+    let mut reader = std::io::BufReader::new(read_stream);
+    use std::io::BufRead;
+    let mut lines = reader.lines();
+    loop {
+        let line = match lines.next() {
+            Some(Ok(l)) => l,
+            Some(Err(e)) => {
+                eprintln!("AI read error: {}", e);
+                break;
+            }
+            None => break,
+        };
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
         }
-    }
-
-    if let Ok(resp) = serde_json::from_str::<serde_json::Value>(&response) {
-        match resp["type"].as_str() {
-            Some("clarification_needed") => {
+        let resp: serde_json::Value = match serde_json::from_str(trimmed) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        let kind = resp["type"].as_str().unwrap_or("");
+        match kind {
+            "clarification_needed" => {
                 println!("{}", resp["question"].as_str().unwrap_or("Could you clarify?"));
             }
-            Some("goal_complete") => {
-                println!("{}", resp["summary"].as_str().unwrap_or("(no response)"));
+            "goal_update" => {
+                if let Some(msg) = resp["message"].as_str() {
+                    if !msg.is_empty() {
+                        println!("> {}", msg);
+                    }
+                }
             }
-            _ if resp["ok"].as_bool() == Some(true) => {
-                println!("{}", resp["result"].as_str().unwrap_or("(no response)"));
+            "confirmation_required" => {
+                let step_id = resp["step_id"].as_str().unwrap_or("").to_string();
+                let description = resp["description"].as_str().unwrap_or("(action)");
+                let impact = resp["impact"].as_str().unwrap_or("");
+                println!("\n⚠  Confirmation required: {}", description);
+                if !impact.is_empty() {
+                    println!("   Impact: {}", impact);
+                }
+                println!("   [Y] Approve   [S] Skip   [A] Abort   [?] Explain");
+                use std::io::Write;
+                let mut input_buf = String::new();
+                let _ = std::io::stdin().read_line(&mut input_buf);
+                let choice = input_buf.trim().to_lowercase();
+                let decision = match choice.as_str() {
+                    "y" | "yes" => "approve",
+                    "a" | "abort" => "abort",
+                    "?" | "explain" => "explain",
+                    _ => "skip",
+                };
+                let reply = serde_json::json!({
+                    "cmd": "confirm",
+                    "step_id": step_id,
+                    "decision": decision,
+                });
+                let payload = format!("{}\n", serde_json::to_string(&reply).unwrap());
+                if let Err(e) = sock.write_all(payload.as_bytes()) {
+                    println!("Failed to send confirmation: {}", e);
+                    return;
+                }
+                let _ = std::io::stdout().flush();
+            }
+            "goal_complete" => {
+                println!("\n{}", resp["summary"].as_str().unwrap_or(""));
+                break;
+            }
+            "goal_failed" => {
+                println!("Goal failed: {}", resp["error"].as_str().unwrap_or("unknown"));
+                break;
             }
             _ => {
-                println!("AI error: {}", resp["error"].as_str().unwrap_or("unknown"));
+                if resp["ok"].as_bool() == Some(true) {
+                    println!("{}", resp["result"].as_str().unwrap_or("(no response)"));
+                } else if let Some(err) = resp["error"].as_str() {
+                    println!("AI error: {}", err);
+                }
             }
         }
-    } else {
-        println!("AI: (invalid response)");
     }
 }
-
 fn handle_raw_json(json_input: &str) -> String {
     let mut sock = match std::os::unix::net::UnixStream::connect(SOCKET_PATH) {
         Ok(s) => s,
