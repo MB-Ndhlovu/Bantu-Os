@@ -9,6 +9,7 @@ Supports two protocols:
 Protocol:
   Send JSON on one line, receive JSON on one line.
   Request (ai):    {"cmd": "ai", "text": "hello"}
+  Request (intent):{"cmd": "intent", "text": "get my project ready to deploy"}
   Request (tool):  {"cmd": "tool", "tool": "file", "method": "read", "args": {"path": "/tmp/test.txt"}}
   Request (ping):  {"cmd": "ping"}
   Session commands: {"cmd": "login", "username": "alice"}
@@ -35,6 +36,10 @@ from typing import Optional
 # Ensure the project root is on the path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from bantu_os.agents.agent_manager import AgentManager
+from bantu_os.core.intent import IntentKernel
+from bantu_os.core.intent.confirmation_gate import ConfirmationRequest
+from bantu_os.core.intent.goal_planner import GoalPlanner
 from bantu_os.core.kernel import Kernel
 from bantu_os.core.session_manager import (
     BudgetExceededError,
@@ -119,6 +124,26 @@ def make_kernel(session: Optional[UserSession] = None) -> Kernel:
     return kernel
 
 
+def make_agent_manager(session: Optional[UserSession] = None) -> AgentManager:
+    kernel = make_kernel(session)
+    agent = AgentManager(kernel=kernel)
+    for name, fn in {
+        "file": FileService,
+        "process": ProcessService,
+        "network": NetworkService,
+    }.items():
+        agent.register_tool(name, fn)
+    if _PHASE2_AVAILABLE:
+        agent.register_tool("messaging", MessagingService)
+        agent.register_tool("fintech", FintechService)
+        agent.register_tool("crypto", CryptoWalletService)
+    if _IOT_AVAILABLE:
+        agent.register_tool("iot", IoTService)
+    if _HARDWARE_AVAILABLE:
+        agent.register_tool("hardware", HardwareService)
+    return agent
+
+
 # ---------------------------------------------------------------------------
 # Per-client protocol handler
 # ---------------------------------------------------------------------------
@@ -145,6 +170,10 @@ class ShellProtocol(asyncio.Protocol):
         "session_id",
         "_kernel",
         "_session",
+        "_agent_manager",
+        "_intent_kernel",
+        "_pending_confirmations",
+        "_confirm_futures",
     )
 
     def __init__(
@@ -159,8 +188,10 @@ class ShellProtocol(asyncio.Protocol):
         self.session_id: Optional[str] = None
         self._kernel: Optional[Kernel] = None
         self._session: Optional[UserSession] = None
-
-    # ── Kernel lazy-init ─────────────────────────────────────────────────────
+        self._agent_manager: Optional[AgentManager] = None
+        self._intent_kernel: Optional[IntentKernel] = None
+        # step_id -> asyncio.Future[str] that the next `confirm` cmd will resolve.
+        self._pending_confirmations: dict[str, asyncio.Future] = {}
 
     @property
     def kernel(self) -> Kernel:
@@ -168,7 +199,28 @@ class ShellProtocol(asyncio.Protocol):
             self._kernel = make_kernel(self._session)
         return self._kernel
 
-    # ── Transport ────────────────────────────────────────────────────────────
+    @property
+    def agent_manager(self) -> AgentManager:
+        if self._agent_manager is None:
+            self._agent_manager = make_agent_manager(self._session)
+        return self._agent_manager
+
+    @property
+    def intent_kernel(self) -> IntentKernel:
+        if self._intent_kernel is None:
+            kernel = self.kernel
+            self._intent_kernel = IntentKernel(
+                agent_manager=self.agent_manager,
+                planner=GoalPlanner(
+                    llm_manager=None,
+                    available_tools=getattr(self.agent_manager, "tools", {}).keys(),
+                    memory=getattr(kernel, "memory", None),
+                    memory_top_k=getattr(kernel, "memory_top_k", 3),
+                ),
+                memory=getattr(kernel, "memory", None),
+                memory_top_k=getattr(kernel, "memory_top_k", 3),
+            )
+        return self._intent_kernel
 
     def connection_made(self, transport: asyncio.Transport) -> None:
         self.transport = transport
@@ -185,7 +237,24 @@ class ShellProtocol(asyncio.Protocol):
     def connection_lost(self, exc: Optional[Exception]) -> None:
         self.transport = None
 
-    # ── Command router ────────────────────────────────────────────────────────
+    async def _resolve_confirmation(self, request: ConfirmationRequest) -> str:
+        """Send a confirmation_required frame and wait for the client's `confirm`."""
+        fut: asyncio.Future = self.loop.create_future()
+        self._pending_confirmations[request.node_id] = fut
+        await self._send({
+            "ok": True,
+            "type": "confirmation_required",
+            "step_id": request.node_id,
+            "description": request.description,
+            "impact": request.impact,
+            "options": list(request.options),
+        })
+        try:
+            return await asyncio.wait_for(fut, timeout=120.0)
+        except asyncio.TimeoutError:
+            return "skip"
+        finally:
+            self._pending_confirmations.pop(request.node_id, None)
 
     async def _process(self, line: str) -> None:
         """Parse one JSON line, handle the command, send response."""
@@ -201,7 +270,44 @@ class ShellProtocol(asyncio.Protocol):
             await self._send({"ok": True, "result": "pong"})
             return
 
-        # ── Session commands ────────────────────────────────────────────────
+        if cmd == "confirm":
+            step_id = request.get("step_id", "")
+            decision = str(request.get("decision", "")).lower()
+            fut = self._pending_confirmations.get(step_id)
+            if fut is None or fut.done():
+                await self._send({"ok": False, "error": f"No pending confirmation for {step_id}"})
+                return
+            fut.set_result(decision or "skip")
+            await self._send({"ok": True, "result": "confirmation received"})
+            return
+
+        if cmd == "intent":
+            text = request.get("text", "")
+            if not text:
+                await self._send({"ok": False, "error": "text is required"})
+                return
+            stream = bool(request.get("stream", False))
+            try:
+                if stream:
+                    async for frame in self.intent_kernel.receive_streaming(
+                        text,
+                        context={"session_id": self.session_id},
+                        resolver=self._resolve_confirmation,
+                    ):
+                        await self._send(frame)
+                        # If we asked for confirmation, the `confirm` cmd will
+                        # arrive on this same connection and resolve the future
+                        # before the streaming generator produces the next frame.
+                else:
+                    response = await self.intent_kernel.receive(
+                        text,
+                        context={"session_id": self.session_id},
+                        resolver=self._resolve_confirmation,
+                    )
+                    await self._send(response)
+            except Exception as e:
+                await self._send({"ok": False, "error": str(e)})
+            return
 
         if cmd == "login":
             username = request.get("username", "").strip()
@@ -212,7 +318,9 @@ class ShellProtocol(asyncio.Protocol):
                 session = await self.session_manager.create_session(username)
                 self.session_id = session.session_id
                 self._session = session
-                self._kernel = None  # rebuild kernel with session memory
+                self._kernel = None
+                self._agent_manager = None
+                self._intent_kernel = None
                 await self._send(
                     {
                         "ok": True,
@@ -230,6 +338,8 @@ class ShellProtocol(asyncio.Protocol):
             self.session_id = None
             self._session = None
             self._kernel = None
+            self._agent_manager = None
+            self._intent_kernel = None
             await self._send({"ok": True, "result": "Logged out."})
             return
 
@@ -284,8 +394,6 @@ class ShellProtocol(asyncio.Protocol):
             )
             return
 
-        # ── AI command ──────────────────────────────────────────────────────
-
         if cmd == "ai":
             text = request.get("text", "")
             if not text:
@@ -294,10 +402,8 @@ class ShellProtocol(asyncio.Protocol):
 
             try:
                 if self._session:
-                    # Route through session for persistent context
                     result = await self._session.run(text)
                 else:
-                    # Guest — no session, just kernel
                     result = await self.kernel.process_input(text)
                 await self._send({"ok": True, "result": result})
             except BudgetExceededError:
@@ -311,14 +417,11 @@ class ShellProtocol(asyncio.Protocol):
                 await self._send({"ok": False, "error": str(e)})
             return
 
-        # ── Tool command ──────────────────────────────────────────────────────
-
         if cmd == "tool":
             tool_name = request.get("tool", "")
             method_name = request.get("method", "")
             tool_args = request.get("args", {})
 
-            # Check permissions if session is logged in
             if self._session:
                 permissions = self._session.permissions
                 if not permissions.can_use(tool_name):
@@ -341,8 +444,6 @@ class ShellProtocol(asyncio.Protocol):
 
         await self._send({"ok": False, "error": f"Unknown cmd: {cmd}"})
 
-    # ── Tool execution ─────────────────────────────────────────────────────────
-
     async def _execute_tool(
         self, tool_name: str, method_name: str, tool_args: dict
     ) -> dict:
@@ -364,7 +465,6 @@ class ShellProtocol(asyncio.Protocol):
                 }
 
             instance = tool_class()
-            # For file tool with a logged-in session, use the sandboxed version
             if tool_name == "file" and self._session is not None:
                 instance = SandboxedFileService(str(self._session.sandbox_path))
             method = getattr(instance, method_name)
@@ -385,29 +485,14 @@ class ShellProtocol(asyncio.Protocol):
         except Exception as e:
             return {"ok": False, "error": f"{tool_name}.{method_name} failed: {e}"}
 
-    # ── Response writer ───────────────────────────────────────────────────────
-
     async def _send(self, payload: dict) -> None:
-        """Serialize dict to JSON line and write to transport."""
         if self.transport is None:
             return
         data = json.dumps(payload).encode("utf-8") + b"\n"
         self.transport.write(data)
 
 
-# ---------------------------------------------------------------------------
-# Server
-# ---------------------------------------------------------------------------
-
-
 class SocketServer:
-    """
-    Manages both Unix-domain and TCP socket servers for the shell bridge.
-
-    Holds a shared SessionManager so all connections share the same session
-    state across the machine.
-    """
-
     def __init__(
         self,
         unix_path: str | None = None,
@@ -418,7 +503,14 @@ class SocketServer:
             "BANTU_SOCK_PATH", "/tmp/bantu.sock"
         )
         self.tcp_host = tcp_host
-        self.tcp_port = int(os.environ.get("BANTU_TCP_PORT", str(tcp_port or 18792)))
+        env_tcp_port = os.environ.get("BANTU_TCP_PORT")
+        if env_tcp_port is not None:
+            self.tcp_port = int(env_tcp_port)
+        elif tcp_port is None:
+            self.tcp_port = 18792
+        else:
+            self.tcp_port = tcp_port
+        self.bound_tcp_port: Optional[int] = None
         self._session_manager: Optional[SessionManager] = None
         self._kernel: Optional[Kernel] = None
         self._unix_server: Optional[asyncio.Server] = None
@@ -433,7 +525,6 @@ class SocketServer:
         return self._session_manager
 
     async def _make_protocol_factory(self):
-        """Return a factory that creates ShellProtocol with shared session manager."""
         loop = asyncio.get_running_loop()
 
         def factory() -> ShellProtocol:
@@ -442,7 +533,6 @@ class SocketServer:
         return factory
 
     async def _run_unix_server(self) -> None:
-        """Start Unix-domain socket server on self.unix_path."""
         if os.path.exists(self.unix_path):
             os.unlink(self.unix_path)
 
@@ -457,7 +547,6 @@ class SocketServer:
         print(f"Unix socket listening on {self.unix_path}", flush=True)
 
     async def _run_tcp_server(self) -> None:
-        """Start TCP socket server on self.tcp_host:self.tcp_port."""
         loop = asyncio.get_running_loop()
         factory = await self._make_protocol_factory()
 
@@ -466,14 +555,15 @@ class SocketServer:
             host=self.tcp_host,
             port=self.tcp_port,
         )
+        self.bound_tcp_port = None
         for sock in self._tcp_server.sockets or []:
             if sock.family == socket.AF_INET:
                 actual = sock.getsockname()
+                self.bound_tcp_port = int(actual[1])
                 print(f"TCP socket listening on {actual[0]}:{actual[1]}", flush=True)
                 break
 
     async def run(self) -> None:
-        """Start both servers and run until shutdown is signalled."""
         loop = asyncio.get_running_loop()
 
         for sig in (signal.SIGINT, signal.SIGTERM):
@@ -490,7 +580,6 @@ class SocketServer:
         await self._shutdown_event.wait()
 
     async def shutdown(self, sig: Optional[signal.Signals] = None) -> None:
-        """Graceful shutdown: stop servers, unlink socket, set event."""
         if sig is not None:
             name = sig.name if hasattr(sig, "name") else str(sig)
             print(f"\nShutdown requested ({name})…", flush=True)
@@ -515,11 +604,6 @@ class SocketServer:
                 pass
 
         print("Shell bridge stopped.", flush=True)
-
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
 
 
 async def main() -> None:

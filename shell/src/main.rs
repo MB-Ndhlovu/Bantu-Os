@@ -4,6 +4,7 @@
 use std::io::{self, Read, Write};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use rustyline::history::History;
 
 mod parser;
@@ -18,7 +19,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Bantu-OS Shell v0.1.0 — AI-powered REPL");
     println!("Type 'help' for commands, or chat naturally with the AI.\n");
 
-    // Pipe mode: read stdin line-by-line, process each, then exit
     if !atty::is(atty::Stream::Stdin) {
         let registry = tools::ToolRegistry::new();
         check_kernel_status();
@@ -39,8 +39,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let registry = tools::ToolRegistry::new();
-
-    // Set up rustyline editor with file-backed history
     let mut editor = match setup_editor() {
         Ok(ed) => ed,
         Err(e) => {
@@ -92,8 +90,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn setup_editor() -> rustyline::Result<rustyline::Editor<(), rustyline::history::MemHistory>> {
     let mut editor = rustyline::Editor::new()?;
-
-    // Load existing history from file
     if let Ok(content) = std::fs::read_to_string(HISTORY_FILE) {
         for line in content.lines() {
             if !line.is_empty() {
@@ -101,7 +97,6 @@ fn setup_editor() -> rustyline::Result<rustyline::Editor<(), rustyline::history:
             }
         }
     }
-
     Ok(editor)
 }
 
@@ -145,7 +140,6 @@ fn run_simple_loop(registry: &tools::ToolRegistry) {
 fn process_input(input: &str, registry: &tools::ToolRegistry) -> Option<String> {
     let trimmed = input.trim();
 
-    // Pipe mode: detect raw JSON from stdin and forward directly to kernel
     if trimmed.starts_with('{') {
         return Some(handle_raw_json(trimmed));
     }
@@ -161,10 +155,10 @@ fn process_input(input: &str, registry: &tools::ToolRegistry) -> Option<String> 
             std::io::stdout().flush().ok();
             return None;
         }
-        "ai" => return Some("Usage: ai <your message>. Or type 'ai on' for persistent AI mode.".to_string()),
+        "ai" => return Some("Usage: ai <your message>. Or type 'ai on' for persistent goal mode.".to_string()),
         "ai on" => {
             AI_MODE.store(true, Ordering::SeqCst);
-            return Some("AI mode enabled. Chat naturally or type 'ai off' to return to shell mode.".to_string());
+            return Some("AI mode enabled. Speak your goal naturally or type 'ai off' to return to shell mode.".to_string());
         }
         "ai off" => {
             AI_MODE.store(false, Ordering::SeqCst);
@@ -201,15 +195,17 @@ fn process_input(input: &str, registry: &tools::ToolRegistry) -> Option<String> 
     }
 
     match parser::parse(trimmed) {
-        Ok(call) => {
-            match registry.execute(&call.tool, &call.args) {
-                Ok(output) => if output.is_empty() { None } else { Some(output) },
-                Err(e) => Some(format!("Error: {:?}", e)),
-            }
-        }
+        Ok(call) => match registry.execute(&call.tool, &call.args) {
+            Ok(output) => if output.is_empty() { None } else { Some(output) },
+            Err(e) => Some(format!("Error: {:?}", e)),
+        },
         Err(_) => {
-            let output = Command::new("sh").arg("-c").arg(trimmed)
-                .stdout(Stdio::piped()).stderr(Stdio::piped()).output();
+            let output = Command::new("sh")
+                .arg("-c")
+                .arg(trimmed)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .output();
             match output {
                 Ok(out) => {
                     if out.status.success() {
@@ -219,7 +215,9 @@ fn process_input(input: &str, registry: &tools::ToolRegistry) -> Option<String> 
                         let stderr = String::from_utf8_lossy(&out.stderr);
                         if stderr.is_empty() {
                             Some(format!("Command exited with code {}", out.status.code().unwrap_or(1)))
-                        } else { Some(stderr.to_string()) }
+                        } else {
+                            Some(stderr.to_string())
+                        }
                     }
                 }
                 Err(e) => Some(format!("Could not execute: {}", e)),
@@ -243,36 +241,97 @@ fn handle_ai_input(input: &str) {
             return;
         }
     };
-
-    let request = serde_json::json!({"cmd": "ai", "text": query});
+    let request = serde_json::json!({"cmd": "intent", "text": query, "stream": true});
     let msg = serde_json::to_string(&request).unwrap();
     if let Err(e) = sock.write_all(msg.as_bytes()).and_then(|_| sock.write_all(b"\n")) {
         println!("AI unavailable: write failed ({})", e);
         return;
     }
-
-    let mut response = String::new();
-    match sock.read_to_string(&mut response) {
-        Ok(_) => {}
-        Err(e) => {
-            println!("AI unavailable: read failed ({})", e);
-            return;
+    // After sending the request, take a separate read-only view of the socket
+    // for streaming responses. The original `sock` keeps write access so we can
+    // answer confirmation prompts on the same connection.
+    let read_stream = sock.try_clone().expect("clone socket for read half");
+    let mut reader = std::io::BufReader::new(read_stream);
+    use std::io::BufRead;
+    let mut lines = reader.lines();
+    loop {
+        let line = match lines.next() {
+            Some(Ok(l)) => l,
+            Some(Err(e)) => {
+                eprintln!("AI read error: {}", e);
+                break;
+            }
+            None => break,
+        };
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
         }
-    }
-
-    if let Ok(resp) = serde_json::from_str::<serde_json::Value>(&response) {
-        if resp["ok"].as_bool() == Some(true) {
-            println!("{}", resp["result"].as_str().unwrap_or("(no response)"));
-        } else {
-            println!("AI error: {}", resp["error"].as_str().unwrap_or("unknown"));
+        let resp: serde_json::Value = match serde_json::from_str(trimmed) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        let kind = resp["type"].as_str().unwrap_or("");
+        match kind {
+            "clarification_needed" => {
+                println!("{}", resp["question"].as_str().unwrap_or("Could you clarify?"));
+            }
+            "goal_update" => {
+                if let Some(msg) = resp["message"].as_str() {
+                    if !msg.is_empty() {
+                        println!("> {}", msg);
+                    }
+                }
+            }
+            "confirmation_required" => {
+                let step_id = resp["step_id"].as_str().unwrap_or("").to_string();
+                let description = resp["description"].as_str().unwrap_or("(action)");
+                let impact = resp["impact"].as_str().unwrap_or("");
+                println!("\n⚠  Confirmation required: {}", description);
+                if !impact.is_empty() {
+                    println!("   Impact: {}", impact);
+                }
+                println!("   [Y] Approve   [S] Skip   [A] Abort   [?] Explain");
+                use std::io::Write;
+                let mut input_buf = String::new();
+                let _ = std::io::stdin().read_line(&mut input_buf);
+                let choice = input_buf.trim().to_lowercase();
+                let decision = match choice.as_str() {
+                    "y" | "yes" => "approve",
+                    "a" | "abort" => "abort",
+                    "?" | "explain" => "explain",
+                    _ => "skip",
+                };
+                let reply = serde_json::json!({
+                    "cmd": "confirm",
+                    "step_id": step_id,
+                    "decision": decision,
+                });
+                let payload = format!("{}\n", serde_json::to_string(&reply).unwrap());
+                if let Err(e) = sock.write_all(payload.as_bytes()) {
+                    println!("Failed to send confirmation: {}", e);
+                    return;
+                }
+                let _ = std::io::stdout().flush();
+            }
+            "goal_complete" => {
+                println!("\n{}", resp["summary"].as_str().unwrap_or(""));
+                break;
+            }
+            "goal_failed" => {
+                println!("Goal failed: {}", resp["error"].as_str().unwrap_or("unknown"));
+                break;
+            }
+            _ => {
+                if resp["ok"].as_bool() == Some(true) {
+                    println!("{}", resp["result"].as_str().unwrap_or("(no response)"));
+                } else if let Some(err) = resp["error"].as_str() {
+                    println!("AI error: {}", err);
+                }
+            }
         }
-    } else {
-        println!("AI: (invalid response)");
     }
 }
-
-/// Handle raw JSON input piped from stdin (pipe mode).
-/// Directly forwards the JSON to the kernel socket and prints the result.
 fn handle_raw_json(json_input: &str) -> String {
     let mut sock = match std::os::unix::net::UnixStream::connect(SOCKET_PATH) {
         Ok(s) => s,
@@ -322,12 +381,11 @@ fn get_shell_help() -> String {
     }
     help.push_str("\nQUICK TIPS:\n");
     help.push_str("  ai <message>   Ask the AI anything\n");
-    help.push_str("  ai on          Persistent AI conversation mode\n");
+    help.push_str("  ai on          Persistent goal mode\n");
     help.push_str("  Up/Down arrows Navigate command history\n");
     help
 }
 
-/// Send a JSON command to the kernel socket and return the result string.
 fn send_kernel_cmd(json_cmd: &str) -> Option<String> {
     let mut sock = match std::os::unix::net::UnixStream::connect(SOCKET_PATH) {
         Ok(s) => s,
