@@ -7,6 +7,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### In Progress
+- Phase 4: Intent Kernel — natural-language goals, goal trees, monitoring, retry, confirmation
+  - `bantu_os/core/intent/` package: `intent_kernel.py`, `goal_planner.py`, `goal_tree.py`,
+    `execution_monitor.py`, `retry_engine.py`, `confirmation_gate.py`, `intent_renderer.py`
+  - Socket protocol `cmd: "intent"` (single-shot + streaming `stream: true`) and `cmd: "confirm"`
+  - Shell routes AI-mode input through the intent kernel
+  - 10 intent unit tests + 4 socket-level intent tests passing
+  - See `INTENT_KERNEL.md` for the full design.
+
 - Raspberry Pi hardware prototype
 - AI shell UX polish (history, tab completion)
 - C init ↔ Python service registry wiring

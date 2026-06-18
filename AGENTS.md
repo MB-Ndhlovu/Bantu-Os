@@ -25,7 +25,10 @@ BASE:    Linux Kernel
 - Services: ✅ FileService, ProcessService, NetworkService
 - Init bridge: ✅ InitBridge for C init service registry, registered with C init on boot
 - CI: ✅ pytest + cargo test on every push/PR
-- **Phase 2 (skeleton): 🔨 Messaging/Fintech/Crypto services — architecture defined, stubs created**
+- Intent Kernel: ✅ Phase 1 + 2 + 3 — `bantu_os/core/intent/`, streaming socket protocol,
+  Rust shell routes AI mode through the kernel, 10 intent unit tests + 4 socket-level
+  intent tests passing
+- **Phase 4 (in progress):** Scaling, integrations, polish
 
 ## Workflow (Mandatory for All Agents)
 
@@ -40,20 +43,26 @@ BASE:    Linux Kernel
 8. Open PR on GitHub
 ```
 
-## What to Build Next (Priority Order)
+## Intent Kernel Quick Start
 
-1. Phase 1 — Foundation: COMPLETE
-   - C init, Rust shell, Python AI engine, services, and memory are all implemented and working.
-2. Phase 2 — Connectivity: COMPLETE
-   - Messaging, fintech APIs, and crypto wallet capabilities are in place.
-3. Phase 3 — Ecosystem: COMPLETE
-   - IoT, hardware monitoring, multi-user sessions, and ServiceManager are implemented.
-4. Phase 4 — Scale: IN PROGRESS
-   - Raspberry Pi hardware prototype integration
-   - Enterprise partnership groundwork
-   - Global rollout preparation
-   - AI shell UX polish (REPL history, tab completion)
-   - C init ↔ Python service registry wiring
+- `bantu_os/core/intent/` — package implementation
+- `docs/INTENT_KERNEL.md` — companion design doc
+- `bantu_os_intent_kernel_spec.docx` — original spec
+
+```python
+from bantu_os.core.intent import IntentKernel, GoalPlanner
+from bantu_os.agents.agent_manager import AgentManager
+
+agent = AgentManager(kernel=kernel)
+planner = GoalPlanner(llm_manager=kernel.llm, available_tools=agent.tools.keys())
+intent = IntentKernel(agent_manager=agent, planner=planner)
+result = await intent.receive("deploy the project")
+```
+
+Socket protocol (added alongside the existing JSON line protocol):
+- `{"cmd": "intent", "text": "...", "stream": true}` — submit goal
+- `{"cmd": "confirm", "step_id": "...", "decision": "approve"}` — reply to gate
+- frames: `goal_update`, `confirmation_required`, `goal_complete`, `goal_failed`
 
 ## Commit Convention
 
@@ -66,4 +75,4 @@ Examples: `feat(init): add SIGTERM handling`, `fix(scheduler): HHMM regex`
 
 - NEVER expose GITHUB_TOKEN in code or messages
 - All tests must pass before pushing
-- Read SPEC.md before working on architecture-level changes
+- Read SPEC.md and docs/INTENT_KERNEL.md before working on architecture-level changes
