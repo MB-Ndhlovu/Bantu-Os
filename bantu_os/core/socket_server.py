@@ -38,6 +38,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from bantu_os.agents.agent_manager import AgentManager
 from bantu_os.core.intent import IntentKernel
+from bantu_os.core.intent.confirmation_gate import ConfirmationRequest
+from bantu_os.core.intent.goal_planner import GoalPlanner
 from bantu_os.core.kernel import Kernel
 from bantu_os.core.session_manager import (
     BudgetExceededError,
@@ -170,6 +172,8 @@ class ShellProtocol(asyncio.Protocol):
         "_session",
         "_agent_manager",
         "_intent_kernel",
+        "_pending_confirmations",
+        "_confirm_futures",
     )
 
     def __init__(
@@ -186,6 +190,8 @@ class ShellProtocol(asyncio.Protocol):
         self._session: Optional[UserSession] = None
         self._agent_manager: Optional[AgentManager] = None
         self._intent_kernel: Optional[IntentKernel] = None
+        # step_id -> asyncio.Future[str] that the next `confirm` cmd will resolve.
+        self._pending_confirmations: dict[str, asyncio.Future] = {}
 
     @property
     def kernel(self) -> Kernel:
@@ -202,7 +208,18 @@ class ShellProtocol(asyncio.Protocol):
     @property
     def intent_kernel(self) -> IntentKernel:
         if self._intent_kernel is None:
-            self._intent_kernel = IntentKernel(agent_manager=self.agent_manager)
+            kernel = self.kernel
+            self._intent_kernel = IntentKernel(
+                agent_manager=self.agent_manager,
+                planner=GoalPlanner(
+                    llm_manager=None,
+                    available_tools=getattr(self.agent_manager, "tools", {}).keys(),
+                    memory=getattr(kernel, "memory", None),
+                    memory_top_k=getattr(kernel, "memory_top_k", 3),
+                ),
+                memory=getattr(kernel, "memory", None),
+                memory_top_k=getattr(kernel, "memory_top_k", 3),
+            )
         return self._intent_kernel
 
     def connection_made(self, transport: asyncio.Transport) -> None:
@@ -220,6 +237,25 @@ class ShellProtocol(asyncio.Protocol):
     def connection_lost(self, exc: Optional[Exception]) -> None:
         self.transport = None
 
+    async def _resolve_confirmation(self, request: ConfirmationRequest) -> str:
+        """Send a confirmation_required frame and wait for the client's `confirm`."""
+        fut: asyncio.Future = self.loop.create_future()
+        self._pending_confirmations[request.node_id] = fut
+        await self._send({
+            "ok": True,
+            "type": "confirmation_required",
+            "step_id": request.node_id,
+            "description": request.description,
+            "impact": request.impact,
+            "options": list(request.options),
+        })
+        try:
+            return await asyncio.wait_for(fut, timeout=120.0)
+        except asyncio.TimeoutError:
+            return "skip"
+        finally:
+            self._pending_confirmations.pop(request.node_id, None)
+
     async def _process(self, line: str) -> None:
         """Parse one JSON line, handle the command, send response."""
         try:
@@ -234,16 +270,41 @@ class ShellProtocol(asyncio.Protocol):
             await self._send({"ok": True, "result": "pong"})
             return
 
+        if cmd == "confirm":
+            step_id = request.get("step_id", "")
+            decision = str(request.get("decision", "")).lower()
+            fut = self._pending_confirmations.get(step_id)
+            if fut is None or fut.done():
+                await self._send({"ok": False, "error": f"No pending confirmation for {step_id}"})
+                return
+            fut.set_result(decision or "skip")
+            await self._send({"ok": True, "result": "confirmation received"})
+            return
+
         if cmd == "intent":
             text = request.get("text", "")
             if not text:
                 await self._send({"ok": False, "error": "text is required"})
                 return
+            stream = bool(request.get("stream", False))
             try:
-                response = await self.intent_kernel.receive(
-                    text, context={"session_id": self.session_id}
-                )
-                await self._send(response)
+                if stream:
+                    async for frame in self.intent_kernel.receive_streaming(
+                        text,
+                        context={"session_id": self.session_id},
+                        resolver=self._resolve_confirmation,
+                    ):
+                        await self._send(frame)
+                        # If we asked for confirmation, the `confirm` cmd will
+                        # arrive on this same connection and resolve the future
+                        # before the streaming generator produces the next frame.
+                else:
+                    response = await self.intent_kernel.receive(
+                        text,
+                        context={"session_id": self.session_id},
+                        resolver=self._resolve_confirmation,
+                    )
+                    await self._send(response)
             except Exception as e:
                 await self._send({"ok": False, "error": str(e)})
             return
@@ -442,7 +503,14 @@ class SocketServer:
             "BANTU_SOCK_PATH", "/tmp/bantu.sock"
         )
         self.tcp_host = tcp_host
-        self.tcp_port = int(os.environ.get("BANTU_TCP_PORT", str(tcp_port or 18792)))
+        env_tcp_port = os.environ.get("BANTU_TCP_PORT")
+        if env_tcp_port is not None:
+            self.tcp_port = int(env_tcp_port)
+        elif tcp_port is None:
+            self.tcp_port = 18792
+        else:
+            self.tcp_port = tcp_port
+        self.bound_tcp_port: Optional[int] = None
         self._session_manager: Optional[SessionManager] = None
         self._kernel: Optional[Kernel] = None
         self._unix_server: Optional[asyncio.Server] = None
@@ -487,9 +555,11 @@ class SocketServer:
             host=self.tcp_host,
             port=self.tcp_port,
         )
+        self.bound_tcp_port = None
         for sock in self._tcp_server.sockets or []:
             if sock.family == socket.AF_INET:
                 actual = sock.getsockname()
+                self.bound_tcp_port = int(actual[1])
                 print(f"TCP socket listening on {actual[0]}:{actual[1]}", flush=True)
                 break
 
