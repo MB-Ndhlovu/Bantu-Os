@@ -1,0 +1,1 @@
+Opening this repository in VS Code with the Dev Containers extension will automatically set up the full Python, Rust, and C build environment for Bantu-OS.

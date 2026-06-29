@@ -25,7 +25,10 @@ BASE:    Linux Kernel
 - Services: ✅ FileService, ProcessService, NetworkService
 - Init bridge: ✅ InitBridge for C init service registry, registered with C init on boot
 - CI: ✅ pytest + cargo test on every push/PR
-- **Phase 2 (skeleton): 🔨 Messaging/Fintech/Crypto services — architecture defined, stubs created**
+- Intent Kernel: ✅ Phase 1 + 2 + 3 — `bantu_os/core/intent/`, streaming socket protocol,
+  Rust shell routes AI mode through the kernel, 10 intent unit tests + 4 socket-level
+  intent tests passing
+- **Phase 4 (in progress):** Scaling, integrations, polish
 
 ## Workflow (Mandatory for All Agents)
 
@@ -40,21 +43,26 @@ BASE:    Linux Kernel
 8. Open PR on GitHub
 ```
 
-## What to Build Next (Priority Order)
+## Intent Kernel Quick Start
 
-1. ~~Shell-to-kernel socket connection (Rust shell → Python kernel over Unix socket)~~ ✅ DONE
-   - `bantu_os/core/socket_server.py` — dual Unix socket (`/tmp/bantu.sock`) + TCP (`127.0.0.1:18792`)
-   - `tests/kernel/test_socket_server.py` — 18 integration tests passing
-   - Tool protocol: `{"cmd": "tool", "tool": "file|process|network", "method": "method_name", "args": {...}}`
-   - AI protocol unchanged: `{"cmd": "ai", "text": "..."}`
-2. ~~AI-native shell UX (polish REPL, history, tab completion)~~ ✅ DONE
-   - Persistent history, clear/status commands, better AI mode UX
-   - `tests/test_e2e_shell_kernel.py` — end-to-end smoke test
-3. ~~C init integration (InitBridge for service registry)~~ ✅ DONE
-   - `bantu_os/core/init_bridge.py` — Python service registration with C init
-   - Graceful shutdown via SIGTERM propagation from C init → services
-   - Still to do: wire init_bridge heartbeat into SocketServer (background task)
-4. Phase 2: Connectivity (messaging, fintech APIs, crypto wallet)
+- `bantu_os/core/intent/` — package implementation
+- `docs/INTENT_KERNEL.md` — companion design doc
+- `bantu_os_intent_kernel_spec.docx` — original spec
+
+```python
+from bantu_os.core.intent import IntentKernel, GoalPlanner
+from bantu_os.agents.agent_manager import AgentManager
+
+agent = AgentManager(kernel=kernel)
+planner = GoalPlanner(llm_manager=kernel.llm, available_tools=agent.tools.keys())
+intent = IntentKernel(agent_manager=agent, planner=planner)
+result = await intent.receive("deploy the project")
+```
+
+Socket protocol (added alongside the existing JSON line protocol):
+- `{"cmd": "intent", "text": "...", "stream": true}` — submit goal
+- `{"cmd": "confirm", "step_id": "...", "decision": "approve"}` — reply to gate
+- frames: `goal_update`, `confirmation_required`, `goal_complete`, `goal_failed`
 
 ## Commit Convention
 
@@ -67,4 +75,4 @@ Examples: `feat(init): add SIGTERM handling`, `fix(scheduler): HHMM regex`
 
 - NEVER expose GITHUB_TOKEN in code or messages
 - All tests must pass before pushing
-- Read SPEC.md before working on architecture-level changes
+- Read SPEC.md and docs/INTENT_KERNEL.md before working on architecture-level changes

@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+pycache/
 *.py[cod]
 *.pyo
 *.pyd
@@ -26,3 +27,19 @@ target/
 *.pyc
 __pycache__/
 init/init
+
+# Test artifacts
+.coverage
+coverage.xml
+htmlcov/
+
+# Runtime data
+bantu_os_data/
+*.db
+*.sqlite
+
+# Rust
+shell/target/
+
+# OS
+Thumbs.db

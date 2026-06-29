@@ -62,7 +62,7 @@ def socket_path():
 @pytest.fixture
 async def server(socket_path):
     """Start a SocketServer on a temporary socket, yield it, then shut it down."""
-    srv = SocketServer(unix_path=socket_path)
+    srv = SocketServer(unix_path=socket_path, tcp_port=0)
     srv_task = asyncio.create_task(srv.run())
 
     # Wait for the server to be listening
@@ -433,13 +433,65 @@ async def test_server_shutdown_unlinks_socket(server, socket_path):
 
 @pytest.mark.asyncio
 async def test_tcp_port_bound(server):
-    """TCP server started on 127.0.0.1:18792."""
-    host, port = "127.0.0.1", 18792
+    """TCP server started on 127.0.0.1:18792 (or 0 for ephemeral)."""
+    port = server.bound_tcp_port or 18792
+    host = "127.0.0.1"
     reader, writer = await asyncio.open_connection(host, port)
     try:
         resp = await send_json(reader, writer, {"cmd": "ping"})
         assert resp["ok"] is True
         assert resp["result"] == "pong"
+    finally:
+        writer.close()
+        await writer.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_intent_streaming_frames(server, socket_path):
+    reader, writer = await connect(socket_path)
+    try:
+        writer.write(
+            json.dumps({"cmd": "intent", "text": "deploy project", "stream": True}).encode("utf-8")
+            + b"\n"
+        )
+        await writer.drain()
+
+        first = json.loads((await reader.readline()).decode("utf-8"))
+        second = json.loads((await reader.readline()).decode("utf-8"))
+        assert first["type"] == "goal_update"
+        assert second["type"] == "goal_complete"
+    finally:
+        writer.close()
+        await writer.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_intent_confirmation_round_trip(server, socket_path):
+    reader, writer = await connect(socket_path)
+    try:
+        writer.write(
+            json.dumps({"cmd": "intent", "text": "delete temporary files", "stream": True}).encode("utf-8")
+            + b"\n"
+        )
+        await writer.drain()
+
+        first = json.loads((await reader.readline()).decode("utf-8"))
+        assert first["type"] == "goal_update"
+
+        # If a confirmation is required, answer approve; otherwise continue.
+        pending = json.loads((await reader.readline()).decode("utf-8"))
+        if pending.get("type") == "confirmation_required":
+            writer.write(
+                json.dumps({"cmd": "confirm", "step_id": pending["step_id"], "decision": "approve"}).encode("utf-8")
+                + b"\n"
+            )
+            await writer.drain()
+            ack = json.loads((await reader.readline()).decode("utf-8"))
+            assert ack["ok"] is True
+            final = json.loads((await reader.readline()).decode("utf-8"))
+            assert final["type"] == "goal_complete"
+        else:
+            assert pending["type"] == "goal_complete"
     finally:
         writer.close()
         await writer.wait_closed()
