@@ -98,92 +98,56 @@ Bantu-OS/
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-### Prerequisites
-
-- Linux (Debian/Ubuntu-based)
-- Python 3.10+ with `venv`
-- Rust 1.70+
-- GCC
-- Git
-- Docker (optional, for containerized build)
-
-### Build & Run
+Run the live demo (no setup needed — works on any machine with Python 3.10+):
 
 ```bash
-# Clone the repository
 git clone https://github.com/MB-Ndhlovu/Bantu-Os.git
 cd Bantu-Os
-
-# Install Python dependencies (editable install)
-pip install -e .
-
-# Build Python package (alternative)
-make build
-
-# Build C init system
-cd init && make
-
-# Build Rust shell
-cd ../shell && cargo build --release
-
-# Run Python tests
-make test
-
-# Verify everything builds
-python -c "import bantu_os; print('Python engine: OK')"
-./shell/target/release/bantu  --help  2>/dev/null && echo "Rust shell: OK"
+bash scripts/demo.sh
 ```
 
-### Running Bantu-OS
+That single command boots the kernel, probes every working service over the Unix socket, then launches the Rust shell. Runs in ~30 seconds, no credentials required.
+
+Want the persistent full stack (kernel + shell in REPL)?
 
 ```bash
-# Option 1: Quick Python REPL (AI chat in terminal)
-python main.py
-
-# Option 2: Full system launch (Python kernel + Rust shell, requires shell built)
-./start.sh
+pip install -e .            # Python deps
+cd init && make && cd ..    # C init
+cd shell && cargo build --release && cd ..
+./start.sh                  # boots kernel + launches Rust shell
 ```
 
-### Docker (Optional)
+Run the test suite:
 
 ```bash
-# Build Docker image
-make docker-build
-
-# Run inside container
-make docker-run
+make test                    # all Python + Rust tests
 ```
-
-### Troubleshooting
-
-| Problem | Solution |
-|---------|----------|
-| `poetry: command not found` | `pip install poetry` |
-| Rust build fails | `rustup update && rustup default stable` |
-| GCC compilation errors | `apt install build-essential` |
-| Python import fails | `pip install -e .` to reinstall dependencies |
-| Tests fail | Check Python version is 3.10+ with `python3 --version` |
 
 ---
 
-## 📦 What's Implemented
+## What's Demonstrated
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| C Init System | ✅ | Compiles, service registry, PID 1 ready |
-| Rust Shell | ✅ | REPL, tool dispatch, natural language parsing, 13 tests |
-| Python AI Engine | ✅ | Kernel, LLM manager, OpenAI provider, agentic loop, 28+ tests |
-| Tool Executor | ✅ | Async tool pipeline, multi-tool calls, error handling |
-| ChromaDB Memory | ✅ | Persistent vector store, knowledge graph, embeddings |
-| Services | ✅ | FileService, ProcessService, NetworkService, scheduler |
-| CI/CD | ✅ | GitHub Actions: pytest + cargo test on every push/PR |
-| Tests | ✅ | 97 Python tests + 13 Rust tests passing |
+The demo proves the kernel + service stack works end-to-end with zero configuration:
+
+| Layer | Component | Status | Demo evidence |
+|-------|-----------|--------|---------------|
+| 1 | C init (PID 1) | ✓ Compiles | service registry, signal handling |
+| 2 | Rust shell | ✓ Builds + 13 tests pass | connects to kernel over Unix socket |
+| 3 | Python AI engine | ✓ Kernel + LLM manager | handles `{"cmd": "ai"}` requests |
+| 4 | file service | ✓ | `file.read /etc/hostname` returns contents |
+| 4 | process service | ✓ | `process.list_processes` returns live ps table |
+| 4 | network service | ✓ | `network.ping github.com` succeeds |
+| 4 | hardware service | ✓ | live CPU %, RAM %, disk usage |
+| 4 | IoT service | ✓ | device registry, sensor ingestion ready |
+| 4 | messaging | ⏸ credential-gated | SMTP / Twilio / Telegram — wires in on env vars |
+| 4 | fintech | ⏸ credential-gated | Stripe / M-Pesa / Flutterwave / Paystack |
+| 4 | crypto | ⏸ credential-gated | ETH / ERC-20 multi-chain wallet |
 
 ---
 
-## 🗺️ Roadmap
+## 🚀 Roadmap
 
 Phase 1 is complete. All layers are functional and tested.
 
