@@ -1,0 +1,144 @@
+
+  ╔═══════════════════════════════════════════════════════════╗
+  ║                                                           ║
+  ║     ██████╗  █████╗ ███╗   ██╗████████╗██╗   ██╗         ║
+  ║     ██╔══██╗██╔══██╗████╗  ██║╚══██╔══╝██║   ██║         ║
+  ║     ██████╔╝███████║██╔██╗ ██║   ██║   ██║   ██║         ║
+  ║     ██╔══██╗██╔══██║██║╚██╗██║   ██║   ██║   ██║         ║
+  ║     ██████╔╝██║  ██║██║ ╚████║   ██║   ╚██████╔╝         ║
+  ║     ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝    ╚═════╝          ║
+  ║                                                           ║
+  ║     AI-Native Operating System — Live Demo                ║
+  ║     github.com/MB-Ndhlovu/Bantu-Os                        ║
+  ║                                                           ║
+  ╚═══════════════════════════════════════════════════════════╝
+
+
+
+[1m[1;33m▶ STEP 1: Architecture — 4 layers on top of Linux[0m
+
+  [0;36mLayer 4[0m  Python Services    file · process · network · hardware · iot · messaging · fintech · crypto
+  [0;36mLayer 3[0m  Python AI Engine   kernel · llm_manager · tool_executor · agentic loop
+  [0;36mLayer 2[0m  Rust Shell         REPL · command parser · tool dispatch
+  [0;36mLayer 1[0m  C Init System      PID 1 · service registry · signal handling
+  [0;36mBase   [0m  Linux Kernel       the foundation
+
+  Built from scratch: [1mC + Rust + Python[0m
+
+
+[1m[1;33m▶ STEP 2: Boot the Python kernel server[0m
+[0;36m[INFO][0m  Shutting down…
+[0;36m[INFO][0m  Starting: python3 -m bantu_os.core.socket_server
+[0;36m[INFO][0m  Log: /tmp/bantu-kernel-demo.log
+[0;36m[INFO][0m  Kernel PID: 3469
+[0;32m✓ Unix socket ready: /tmp/bantu.sock[0m
+[0;32m✓ TCP socket ready: 127.0.0.1:18792[0m
+
+
+[1m[1;33m▶ STEP 3: Protocol — ping[0m
+[0;36m[INFO][0m  Sending: {"cmd": "ping"}
+  → {"ok": true, "result": "pong"}
+[0;32m✓ Unix socket bridge operational[0m
+
+
+[1m[1;33m▶ STEP 4: file.read — system file[0m
+[0;36m[INFO][0m  Sending: {"cmd":"tool","tool":"file","method":"read","args":{"path":"/etc/hostname"}}
+  → "debuerreotype\n"
+[0;32m✓ file.read works[0m
+
+
+[1m[1;33m▶ STEP 5: process.list_processes[0m
+[0;36m[INFO][0m  Sending: {"cmd":"tool","tool":"process","method":"list_processes","args":{}}
+  → [{"pid": 1, "name": "dumb-init", "status": "sleeping", "username": "root", "cmdline": "/bin/dumb-init -- bash /__substrate/entrypoint.sh", "create_time": "2026-07-01T17:09:10.200000"}, {"pid": 2, "nam
+[0;32m✓ process.list_processes works[0m
+
+
+[1m[1;33m▶ STEP 6: network.ping — reach github.com[0m
+[0;36m[INFO][0m  Sending: {"cmd":"tool","tool":"network","method":"ping","args":{"host":"github.com"}}
+  → {"host": "github.com", "packets_sent": 1, "packets_received": 1, "packet_loss_percent": 0.0, "results": [{"success": true, "time_ms": 25.79}], "timestamp": "2026-07-01T17:54:52.210554"}
+[0;32m✓ network.ping works[0m
+
+
+[1m[1;33m▶ STEP 7: hardware.hardware_cpu_stats + memory_stats[0m
+  → hardware_cpu_stats: {"cpu_percent": 0.0, "temperature_c": null, "frequency_mhz": 3744.338, "core_count": 3, "uptime_seconds": 2743.1753413677216}
+[0;32m✓ hardware_cpu_stats works[0m
+  → hardware_memory_stats: {"ram_total_b": 4294967296, "ram_used_b": 1591640064, "ram_percent": 37.1, "ram_free_b": 2703327232, "swap_total_b": 0, "swap_used_b": 0, "swap_percent": 0.0}
+[0;32m✓ hardware_memory_stats works[0m
+  → hardware_disk_usage: {"mount_point": "/", "total_b": 549755813888, "used_b": 68423680, "free_b": 549687390208, "percent": 0.0}
+[0;32m✓ hardware_disk_usage works[0m
+
+
+[1m[1;33m▶ STEP 8: iot.iot_list_devices[0m
+[0;36m[INFO][0m  Sending: {"cmd":"tool","tool":"iot","method":"iot_list_devices","args":{}}
+  → {"devices": [], "count": 0}
+[0;32m✓ iot.iot_list_devices works (0 registered devices is the expected empty state)[0m
+
+
+[1m[1;33m▶ STEP 9: messaging / fintech / crypto — registered, credential-gated[0m
+
+  [2mThese services are registered in the kernel but need real credentials to actually transact.[0m
+  [2mThe socket returns a structured error rather than crashing — that's the design.[0m
+
+  → messaging.send_email (no SMTP creds):
+    {"ok": false, "error": "messaging.messaging_send_email failed: SMTP_USERNAME / SMTP_PASSWORD not set. Cannot send email."}
+
+[0;32m✓ Registered services respond with structured errors — ready for credentials[0m
+
+
+[1m[1;33m▶ STEP 10: Rust shell — connects to kernel over the same socket[0m
+[0;36m[INFO][0m  Running: echo 'help' | /home/workspace/bantu_os/shell/target/release/bantu
+
+    Bantu-OS Shell v0.1.0 — AI-powered REPL
+    Type 'help' for commands, or chat naturally with the AI.
+    
+    [boot] Unix socket found at /tmp/bantu.sock
+    
+    Bantu-OS Shell — Available commands:
+    
+    SHELL COMMANDS:
+      help           Show this help
+      clear          Clear screen
+      status         Show kernel/socket status
+      ai on / ai off Toggle AI mode
+      exit / quit    Exit shell
+    
+    SYSTEM TOOLS:
+      cat          — Display file contents
+      run          — Execute a command
+      help         — Show help
+      kill         — Kill a process
+      cp           — Copy file
+
+[0;32m✓ Rust shell connects and runs[0m
+
+
+[1m[1;33m▶ STEP 11: Demo complete — what just happened[0m
+
+  [1m8 services registered with the kernel[0m
+    1. file      — read, write, list, search
+    2. process   — spawn, list, kill
+    3. network   — HTTP, connectivity check
+    4. hardware  — CPU, RAM, disk, network, GPIO, USB
+    5. iot       — MQTT, device registry, sensor ingestion
+    6. messaging — SMTP, Twilio SMS, Telegram
+    7. fintech   — Stripe, M-Pesa, Flutterwave, Paystack
+    8. crypto    — ETH / ERC-20 multi-chain wallet
+
+  [1m5 services demonstrated end-to-end[0m (no credentials required)
+    ping · file.read · process.list_processes · network.ping · hardware.* · iot.*
+
+  [1mProtocols exposed[0m
+    Unix socket: /tmp/bantu.sock       (Rust shell)
+    TCP socket:  127.0.0.1:18792       (multi-client / telnet)
+
+  [1mRun it yourself[0m
+    git clone https://github.com/MB-Ndhlovu/Bantu-Os.git
+    cd Bantu-Os && bash scripts/demo.sh
+
+  [1mRun the full stack[0m
+    ./start.sh
+
+[0;32m✓ Africa-born. World-class.[0m
+
+demo checks passed: 0 endpoints green
+[0;36m[INFO][0m  Shutting down…
