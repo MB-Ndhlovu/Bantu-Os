@@ -107,7 +107,11 @@ cd Bantu-Os
 bash scripts/demo.sh
 ```
 
-That single command boots the kernel, probes every working service over the Unix socket, and launches the Rust shell. Runs in ~30 seconds, no credentials required.
+Runs in ~30 seconds, no credentials required.
+
+### Or watch it run (web UI walkthrough, 6s GIF)
+
+![Bantu-OS web UI walkthrough](docs/assets/bantu-web-demo.gif)
 
 ### What the output looks like (real run, on this machine)
 
