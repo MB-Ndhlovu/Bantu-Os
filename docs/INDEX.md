@@ -32,7 +32,7 @@ Welcome to the Bantu-OS documentation.
 
 | Document | Description |
 |----------|-------------|
-| [SPEC.md](./SPEC.md) | **Start here.** Full project specification: architecture, language choices, directory layout, roadmap, contribution guidelines. |
+| [SPEC.md](../SPEC.md) | **Start here.** Full project specification: architecture, language choices, directory layout, roadmap, contribution guidelines. |
 | [KERNEL.md](./KERNEL.md) | Layer-by-layer kernel architecture: C init → Rust FFI → Python services. Covers boot sequence and IPC design. |
 | [SECURITY.md](./SECURITY.md) | Threat model, privilege tiers, secrets management, input sanitization, IPC security, boot integrity. |
 | [INIT.md](./INIT.md) | C init system design: service registry, signal handling, dependency resolution. |
@@ -58,7 +58,7 @@ bantu_os/
 │   ├── core/          → Layer 3: AI engine (kernel, llm_manager)
 │   ├── agents/        → Agent loop, tool executor, task manager
 │   ├── memory/        → Vector DB, knowledge graph, embeddings
-│   ├── services/      → Layer 4: File, process, network, scheduler
+│   ├── services/      → Layer 4: file, process, network, scheduler, hardware, IoT, messaging, fintech, crypto
 │   ├── security/      → Secrets management
 │   └── interface/     → CLI shell, voice/text hooks
 ├── tests/             → Unit + integration tests
@@ -95,12 +95,7 @@ Types: feat | fix | docs | test | refactor | chore
 
 ## 📅 Roadmap
 
-| Phase | Focus |
-|-------|-------|
-| Phase 1 (current) | Foundation — working init, shell, Python AI engine, basic services |
-| Phase 2 | Connectivity — messaging, fintech APIs, crypto wallet basics |
-| Phase 3 | Ecosystem — IoT device support, hardware prototypes |
-| Phase 4 | Scale — enterprise partnerships, global rollout |
+See [README.md](../README.md) for the current phase definitions and roadmap.
 
 ## 🔗 External Links
 

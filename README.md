@@ -72,12 +72,18 @@ Bantu-OS/
 │   ├── Cargo.toml           # Rust dependencies
 │   └── src/
 │       └── main.rs          # Rust REPL entry point
-├── bantu_os/                # Layer 3 & 4: Python AI engine
+├── bantu_os/                # Layer 3 & 4: Python AI engine + services
 │   ├── core/
-│   │   └── kernel/          # LLM manager, providers, kernel
+│   │   ├── kernel/          # LLM manager, providers, kernel
+│   │   └── socket_server.py # Unix/TCP JSON-line kernel bridge
 │   ├── agents/              # Task manager, scheduler, tools
 │   ├── memory/              # Vector DB, knowledge graph
-│   ├── services/           # File, process, network services
+│   ├── services/            # System and domain services
+│   │   ├── crypto/          # ETH/ERC-20 wallet operations
+│   │   ├── fintech/         # Stripe, M-Pesa, Flutterwave, Paystack
+│   │   ├── messaging/       # SMTP, SMS, Telegram
+│   │   ├── iot/             # Devices, MQTT, sensor ingestion
+│   │   └── hardware/        # CPU, memory, disk, GPIO, USB
 │   ├── security/           # Secrets management
 │   └── interface/          # CLI shell, hooks
 ├── tests/                   # Test suite
@@ -279,32 +285,16 @@ The demo proves the kernel + service stack works end-to-end with zero configurat
 
 ## 🚀 Roadmap
 
-Phase 1 is complete. All layers are functional and tested.
+Current phase definitions are maintained in [STATUS.md](STATUS.md). The canonical roadmap is:
 
+```text
+Phase 1 — Foundation: C init, Rust shell, Python AI engine, memory
+Phase 2 — Connectivity: messaging, fintech, and crypto services
+Phase 3 — Ecosystem: IoT, hardware, multi-user sessions, and ServiceManager
+Phase 4 — Scale: hardware prototypes, partnerships, and rollout
 ```
-Phase 1 — Foundation ✅ (COMPLETE)
-├── ✅ C Init System — PID 1, service registry, signal handling
-├── ✅ Rust Shell — REPL, natural language dispatch, 13 tests
-├── ✅ Python AI Engine — Kernel, LLM manager, agentic loop, 97 Python tests
-├── ✅ Python Services — FileService, ProcessService, NetworkService
-└── ✅ Memory — ChromaDB persistent store, knowledge graph, embeddings
 
-Phase 2 — Connectivity ✅ (COMPLETE)
-├── ✅ Messaging — email (SMTP), SMS (Twilio), Telegram bot
-├── ✅ Fintech — Stripe, M-Pesa STK push, Flutterwave, Paystack
-└── ✅ Crypto — ETH/ERC-20 multi-chain wallet (balance, send, sign)
-
-Phase 3 — Ecosystem ✅ (COMPLETE)
-├── ✅ IoT — MQTT broker client, device registry, sensor ingestion
-├── ✅ Hardware — CPU, RAM, disk, network, GPIO, USB monitoring
-├── ✅ Multi-user sessions — isolated per-user AI contexts, token budgets, tool permissions
-├── ✅ ServiceManager — discover, start/stop, health checks, auto-restart, event hooks
-├── 🔜 Hardware prototype — Raspberry Pi integration
-
-Phase 4 — Scale
-├── 🔜 Enterprise partnerships
-└── Global rollout
-```
+Phase 2 and Phase 3 services are implemented with unit tests, but live-provider integration tests are still required before those phases can be called complete.
 
 ---
 

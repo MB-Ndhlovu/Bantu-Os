@@ -207,11 +207,12 @@ Then open a Pull Request on GitHub with:
 
 ## What to Build Next
 
-See [AGENTS.md](./AGENTS.md) for the current priority list:
+See [AGENTS.md](./AGENTS.md) for the current priority list. `AGENTS.md` is the single source of truth for project status; update it when status changes.
 
-1. AI-native shell UX (polish REPL, history, tab completion)
-2. C init integration (service registry wiring)
-3. Phase 2: Connectivity (messaging, fintech APIs, crypto wallet)
+1. Verify the shell ↔ kernel Unix socket bridge end-to-end with an integration test.
+2. Wire the C init system to the service registry.
+3. Add a live-provider or mocked-provider integration test for one Phase 2/3 service.
+4. Polish the AI-native shell UX: REPL history and tab completion.
 
 ---
 

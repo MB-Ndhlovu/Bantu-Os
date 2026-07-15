@@ -30,7 +30,6 @@ build-backend = 'poetry.core.masonry.api'
 
 [tool.pytest.ini_options]
 testpaths = ['tests']
-norecursedirs = ['onyx-main', 'onyx-main/*']
 asyncio_mode = 'auto'
 asyncio_default_fixture_loop_scope = 'function'
 filterwarnings = [
@@ -43,8 +42,6 @@ branch = true
 source = ['bantu_os']
 omit = [
     'bantu_os/__main__.py',
-    'onyx-main/*',
-    'onyx-main/**',
 ]
 
 [tool.coverage.report]

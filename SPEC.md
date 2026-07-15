@@ -61,30 +61,46 @@ The OS is built in discrete, composable layers. Each layer has a clearly defined
 ```
 bantu_os/
 ├── init/                    # Layer 1: C init system
-│   ├── init.c              # PID 1, service registry, signal handling
+│   ├── init.c
+│   ├── services.c
+│   ├── services.h
 │   └── Makefile
 ├── shell/                   # Layer 2: Rust shell
-│   ├── src/main.rs         # REPL, command parser, AI dispatch
-│   ├── src/commands/       # Built-in shell commands
-│   ├── src/ai/             # AI handoff logic (socket + subprocess)
-│   ├── Cargo.toml
-│   └── tests/
-├── bantu_os/               # Layer 3 & 4: Python AI engine + services
+│   ├── src/main.rs
+│   ├── src/lib.rs
+│   ├── src/parser.rs
+│   ├── src/tools.rs
+│   ├── src/tests/integration_tests.rs
+│   └── Cargo.toml
+├── bantu_os/                # Layer 3 & 4: Python AI engine + services
 │   ├── core/
-│   │   ├── kernel/         # Kernel: agentic loop, input processing
-│   │   ├── llm/            # LLM manager: model routing, token tracking
-│   │   ├── tool_executor/  # Tool schema registry, execution
-│   │   ├── memory/         # ChromaDB vector store, session history
-│   │   └── socket_server.py # Unix socket bridge (Rust ↔ Python)
-│   ├── services/
-│   │   ├── file_service.py
-│   │   ├── process_service.py
-│   │   └── network_service.py
-│   └── tests/
-├── docs/                   # Architecture & design docs
-├── kernel/                 # Linux kernel config (future)
-├── boot/                   # initramfs structure (future)
-└── Makefile               # Root build target
+│   │   ├── kernel.py
+│   │   ├── kernel/
+│   │   ├── intent/
+│   │   ├── service_manager.py
+│   │   ├── session_manager.py
+│   │   └── socket_server.py
+│   ├── agents/
+│   ├── ai/
+│   ├── auth/
+│   ├── memory/
+│   └── services/
+│       ├── file_service.py
+│       ├── process_service.py
+│       ├── network_service.py
+│       ├── scheduler_service.py
+│       ├── service_manager.py
+│       ├── supervisor.py
+│       ├── sandboxed_file_service.py
+│       ├── hardware/
+│       ├── iot/
+│       ├── messaging/
+│       ├── fintech/
+│       └── crypto/
+├── tests/
+├── docs/
+├── scripts/
+└── Makefile
 ```
 
 ---
@@ -143,18 +159,7 @@ bantu_os/
 
 **Responsibility:** Provide secure, structured access to system operations. The AI never runs arbitrary code — it calls services.
 
-**Current State:** ✅ FileService, ProcessService, NetworkService — all tested.
-
-**Tool Schema (via `schema.py`):**
-```json
-{
-  "name": "file_read",
-  "description": "Read contents of a file",
-  "parameters": {
-    "path": {"type": "string", "description": "Absolute path to file"}
-  }
-}
-```
+**Current State:** Implemented service classes exist for file, process, network, scheduler, hardware, IoT, messaging, fintech, and crypto. Core services are covered by unit tests; external-provider paths still need live or mocked-provider integration coverage.
 
 ### Memory (`bantu_os/core/memory/`)
 
@@ -166,33 +171,7 @@ bantu_os/
 
 ## Roadmap
 
-### Phase 1: MVP (Current)
-**Goal:** Demonstrate the core loop — user types → shell → kernel → AI response.
-
-- [x] C init as PID 1
-- [x] Rust shell with REPL and built-in commands
-- [x] Python kernel with LLM manager and tool executor
-- [x] ChromaDB memory
-- [x] Python services (file, process, network)
-- [x] Unix socket bridge (Rust ↔ Python) ← **CURRENT TASK**
-- [ ] C init wiring into service registry
-- [ ] End-to-end smoke test (boot → REPL → AI → response)
-
-### Phase 2: System Services
-**Goal:** Make Bantu-OS usable as a development environment.
-
-- Service manager daemon (replaces manual service starts)
-- Persistent agentic context across shell sessions
-- User identity and session management
-- Filesystem sandboxing per session
-
-### Phase 3: Ecosystem
-**Goal:** Make Bantu-OS a platform.
-
-- Package manager for AI tools/agents
-- Multi-user support (multiple AI agents per system)
-- Network API for remote agent access
-- Bootable disk image (ISO/USB)
+See [README.md](./README.md) roadmap for current phase definitions.
 
 ---
 
