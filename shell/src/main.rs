@@ -5,15 +5,56 @@ use std::io::{self, Read, Write};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use rustyline::history::History;
+use rustyline::completion::{Completer, Pair};
+use rustyline::error::ReadlineError;
+use rustyline::highlight::Highlighter;
+use rustyline::hint::Hinter;
+use rustyline::history::DefaultHistory;
+use rustyline::validate::Validator;
+use rustyline::{Context, Editor, Helper};
 
 mod parser;
 mod tools;
 
-const HISTORY_FILE: &str = "/tmp/bantu_shell_history";
+const HISTORY_FILE: &str = "bantu_os_data/shell_history.txt";
 const SOCKET_PATH: &str = "/tmp/bantu.sock";
 
 static AI_MODE: AtomicBool = AtomicBool::new(false);
+
+struct CommandCompleter {
+    commands: Vec<String>,
+}
+
+impl Completer for CommandCompleter {
+    type Candidate = Pair;
+
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        _ctx: &Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Pair>)> {
+        let start = line[..pos].rfind(char::is_whitespace).map_or(0, |index| index + 1);
+        let prefix = &line[start..pos];
+        let matches = self
+            .commands
+            .iter()
+            .filter(|command| command.starts_with(prefix))
+            .map(|command| Pair {
+                display: command.clone(),
+                replacement: command.clone(),
+            })
+            .collect();
+        Ok((start, matches))
+    }
+}
+
+impl Hinter for CommandCompleter {
+    type Hint = String;
+}
+impl Highlighter for CommandCompleter {}
+impl Validator for CommandCompleter {}
+impl Helper for CommandCompleter {}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Bantu-OS Shell v0.1.0 — AI-powered REPL");
@@ -39,7 +80,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let registry = tools::ToolRegistry::new();
-    let mut editor = match setup_editor() {
+    let mut editor = match setup_editor(&registry) {
         Ok(ed) => ed,
         Err(e) => {
             eprintln!("[shell] readline error: {} — using basic mode", e);
@@ -65,16 +106,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     continue;
                 }
                 let _ = editor.add_history_entry(line.as_str());
-                save_history(&editor);
+                save_history(&mut editor);
                 if let Some(msg) = process_input(trimmed, &registry) {
                     println!("{}", msg);
                 }
             }
-            Err(rustyline::error::ReadlineError::Interrupted) => {
+            Err(ReadlineError::Interrupted) => {
                 println!("(use 'exit' or 'quit' to exit)");
                 continue;
             }
-            Err(rustyline::error::ReadlineError::Eof) => {
+            Err(ReadlineError::Eof) => {
                 println!("Goodbye from Bantu-OS.");
                 break;
             }
@@ -88,29 +129,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn setup_editor() -> rustyline::Result<rustyline::Editor<(), rustyline::history::MemHistory>> {
-    let mut editor = rustyline::Editor::new()?;
-    if let Ok(content) = std::fs::read_to_string(HISTORY_FILE) {
-        for line in content.lines() {
-            if !line.is_empty() {
-                let _ = editor.add_history_entry(line);
-            }
-        }
-    }
+fn setup_editor(
+    registry: &tools::ToolRegistry,
+) -> rustyline::Result<Editor<CommandCompleter, DefaultHistory>> {
+    let mut editor = Editor::new()?;
+    editor.set_helper(Some(CommandCompleter {
+        commands: shell_commands(registry),
+    }));
+    let history_path = std::path::Path::new(HISTORY_FILE);
+    let _ = editor.load_history(history_path);
     Ok(editor)
 }
 
-fn save_history(editor: &rustyline::Editor<(), rustyline::history::MemHistory>) {
-    use rustyline::history::SearchDirection;
-    let history = editor.history();
-    let count = history.len();
-    let mut entries = Vec::with_capacity(count);
-    for i in 0..count {
-        if let Ok(Some(entry)) = history.get(i, SearchDirection::Forward) {
-            entries.push(entry.entry.clone());
-        }
+fn save_history(editor: &mut Editor<CommandCompleter, DefaultHistory>) {
+    let history_path = std::path::Path::new(HISTORY_FILE);
+    if let Some(parent) = history_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
     }
-    let _ = std::fs::write(HISTORY_FILE, entries.join("\n"));
+    let _ = editor.save_history(history_path);
+}
+
+fn shell_commands(registry: &tools::ToolRegistry) -> Vec<String> {
+    let mut commands = vec![
+        "ai", "ai on", "ai off", "clear", "exit", "help", "login", "logout", "quit", "status", "whoami",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect::<Vec<_>>();
+    commands.extend(registry.list_tools().into_iter().map(|tool| tool.name.clone()));
+    commands.sort();
+    commands.dedup();
+    commands
 }
 
 fn run_simple_loop(registry: &tools::ToolRegistry) {
