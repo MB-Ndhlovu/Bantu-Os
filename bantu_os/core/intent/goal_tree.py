@@ -100,7 +100,9 @@ class GoalNode:
             "requires": list(self.requires),
             "destructive": self.destructive,
             "created_at": self.created_at.isoformat(),
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": (
+                self.completed_at.isoformat() if self.completed_at else None
+            ),
         }
 
     @classmethod
@@ -117,12 +119,22 @@ class GoalNode:
             result=data.get("result"),
             error=data.get("error"),
             retry_count=int(data.get("retry_count", 0)),
-            retry_history=[RetryRecord.from_dict(item) for item in data.get("retry_history", [])],
+            retry_history=[
+                RetryRecord.from_dict(item) for item in data.get("retry_history", [])
+            ],
             parent_id=data.get("parent_id"),
             requires=list(data.get("requires", [])),
             destructive=bool(data.get("destructive", False)),
-            created_at=datetime.fromisoformat(created_at) if isinstance(created_at, str) else datetime.now(timezone.utc),
-            completed_at=datetime.fromisoformat(completed_at) if isinstance(completed_at, str) and completed_at else None,
+            created_at=(
+                datetime.fromisoformat(created_at)
+                if isinstance(created_at, str)
+                else datetime.now(timezone.utc)
+            ),
+            completed_at=(
+                datetime.fromisoformat(completed_at)
+                if isinstance(completed_at, str) and completed_at
+                else None
+            ),
         )
         node.children = [cls.from_dict(item) for item in data.get("children", [])]
         for child in node.children:
@@ -176,5 +188,9 @@ class GoalTree:
             clarification_needed=bool(data.get("clarification_needed", False)),
             clarification_question=data.get("clarification_question"),
             context=dict(data.get("context", {})),
-            created_at=datetime.fromisoformat(created_at) if isinstance(created_at, str) else datetime.now(timezone.utc),
+            created_at=(
+                datetime.fromisoformat(created_at)
+                if isinstance(created_at, str)
+                else datetime.now(timezone.utc)
+            ),
         )

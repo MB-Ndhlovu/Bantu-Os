@@ -35,4 +35,6 @@ class ExecutionMonitor:
         ]
 
     def detect_timeout(self, started_at: datetime) -> bool:
-        return (datetime.now(timezone.utc) - started_at).total_seconds() > self.timeout_seconds
+        return (
+            datetime.now(timezone.utc) - started_at
+        ).total_seconds() > self.timeout_seconds

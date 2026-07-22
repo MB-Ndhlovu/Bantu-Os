@@ -275,7 +275,9 @@ class Kernel:
             except (TypeError, json.JSONDecodeError):
                 args = {}
             calls.append({"name": name, "args": args})
-            cursor = close + len(_TOOL_CALL_END) if close >= 0 else max(end, match.end())
+            cursor = (
+                close + len(_TOOL_CALL_END) if close >= 0 else max(end, match.end())
+            )
         return calls
 
     async def agentic_loop(

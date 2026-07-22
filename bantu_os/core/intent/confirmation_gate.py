@@ -15,7 +15,16 @@ class ConfirmationRequest:
 
 
 class ConfirmationGate:
-    _DANGEROUS = ("delete", "remove", "destroy", "kill", "rm -rf", "payment", "send", "network")
+    _DANGEROUS = (
+        "delete",
+        "remove",
+        "destroy",
+        "kill",
+        "rm -rf",
+        "payment",
+        "send",
+        "network",
+    )
 
     def requires_confirmation(self, node: GoalNode) -> bool:
         if node.destructive:
@@ -23,7 +32,9 @@ class ConfirmationGate:
         haystack = f"{node.text} {node.tool or ''}".lower()
         return any(token in haystack for token in self._DANGEROUS)
 
-    def build_request(self, node: GoalNode, step_id: Optional[str] = None) -> ConfirmationRequest:
+    def build_request(
+        self, node: GoalNode, step_id: Optional[str] = None
+    ) -> ConfirmationRequest:
         impact = self._describe_impact(node)
         return ConfirmationRequest(
             node_id=step_id or node.id,

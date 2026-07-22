@@ -241,14 +241,16 @@ class ShellProtocol(asyncio.Protocol):
         """Send a confirmation_required frame and wait for the client's `confirm`."""
         fut: asyncio.Future = self.loop.create_future()
         self._pending_confirmations[request.node_id] = fut
-        await self._send({
-            "ok": True,
-            "type": "confirmation_required",
-            "step_id": request.node_id,
-            "description": request.description,
-            "impact": request.impact,
-            "options": list(request.options),
-        })
+        await self._send(
+            {
+                "ok": True,
+                "type": "confirmation_required",
+                "step_id": request.node_id,
+                "description": request.description,
+                "impact": request.impact,
+                "options": list(request.options),
+            }
+        )
         try:
             return await asyncio.wait_for(fut, timeout=120.0)
         except asyncio.TimeoutError:
@@ -275,7 +277,9 @@ class ShellProtocol(asyncio.Protocol):
             decision = str(request.get("decision", "")).lower()
             fut = self._pending_confirmations.get(step_id)
             if fut is None or fut.done():
-                await self._send({"ok": False, "error": f"No pending confirmation for {step_id}"})
+                await self._send(
+                    {"ok": False, "error": f"No pending confirmation for {step_id}"}
+                )
                 return
             fut.set_result(decision or "skip")
             await self._send({"ok": True, "result": "confirmation received"})

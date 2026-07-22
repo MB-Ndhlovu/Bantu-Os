@@ -103,7 +103,9 @@ class GoalPlanner:
         if self.memory is None or not hasattr(self.memory, "retrieve_memory"):
             return []
         try:
-            results = await self.memory.retrieve_memory(goal_text, top_k=self.memory_top_k)
+            results = await self.memory.retrieve_memory(
+                goal_text, top_k=self.memory_top_k
+            )
         except Exception:
             return []
 
@@ -139,7 +141,9 @@ class GoalPlanner:
                     },
                 )
             try:
-                result = await self.llm_manager.generate(messages=messages, temperature=0.2)
+                result = await self.llm_manager.generate(
+                    messages=messages, temperature=0.2
+                )
                 payload = json.loads(result.get("text", "{}"))
                 plan = PlannedGoalPlan.parse_obj(payload)
                 self._validate_plan(plan)
@@ -166,7 +170,11 @@ class GoalPlanner:
             leaf_count += 1
             if leaf_count > self.max_leaf_nodes:
                 raise ValueError("Goal plan exceeds maximum leaf nodes")
-            if node.tool and self.available_tools and node.tool not in self.available_tools:
+            if (
+                node.tool
+                and self.available_tools
+                and node.tool not in self.available_tools
+            ):
                 raise ValueError(f"Unknown tool: {node.tool}")
             if self._is_destructive(node.text, node.tool):
                 node.destructive = True
@@ -193,7 +201,8 @@ class GoalPlanner:
             tool=node.tool,
             tool_params=node.params or None,
             requires=list(node.requires),
-            destructive=bool(node.destructive) or self._is_destructive(node.text, node.tool),
+            destructive=bool(node.destructive)
+            or self._is_destructive(node.text, node.tool),
             status=GoalStatus.PENDING,
         )
         for child in node.children:

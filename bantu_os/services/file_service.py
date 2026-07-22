@@ -89,7 +89,9 @@ class FileService:
     def delete_file(self, path: str, *, confirm: bool = True) -> bool:
         return self.delete(path, confirm=confirm)
 
-    def list_directory(self, path: str, recursive: bool = False) -> List[Dict[str, Any]]:
+    def list_directory(
+        self, path: str, recursive: bool = False
+    ) -> List[Dict[str, Any]]:
         return self.list_dir(path, recursive=recursive)
 
     def create_directory(self, path: str) -> Dict[str, Any]:

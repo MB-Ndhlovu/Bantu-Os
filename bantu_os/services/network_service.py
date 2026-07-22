@@ -334,7 +334,9 @@ class NetworkService:
             except json.JSONDecodeError:
                 payload = result.body
             return {
-                "public_ip": payload.get("ip", payload) if isinstance(payload, dict) else payload,
+                "public_ip": (
+                    payload.get("ip", payload) if isinstance(payload, dict) else payload
+                ),
                 "timestamp": datetime.now().isoformat(),
             }
         except Exception as e:

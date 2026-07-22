@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -116,6 +115,7 @@ class TestUserStore:
     def test_update_last_login(self, store: UserStore) -> None:
         store.create_user("alice", "hunter2")
         import time
+
         time.sleep(0.01)
         store.update_last_login("alice")
         user = store.get_user("alice")

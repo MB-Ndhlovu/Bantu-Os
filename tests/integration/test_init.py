@@ -52,9 +52,9 @@ class TestInitC:
             timeout=5,
         )
         combined = result.stdout + result.stderr
-        assert "Bantu-OS init starting" in combined, (
-            f"Expected init banner in output:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
-        )
+        assert (
+            "Bantu-OS init starting" in combined
+        ), f"Expected init banner in output:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
 
     def test_init_registers_services(self, init_binary: Path):
         result = subprocess.run(
