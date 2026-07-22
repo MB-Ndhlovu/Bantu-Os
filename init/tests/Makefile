@@ -1,7 +1,7 @@
 # bantu_os/init/tests/Makefile
 
 CC = gcc
-CFLAGS = -Wall -Wextra -I.. -D_GNU_SOURCE
+CFLAGS = -Wall -Wextra -Werror -std=c11 -I.. -g
 LDFLAGS =
 
 TESTS = test_services

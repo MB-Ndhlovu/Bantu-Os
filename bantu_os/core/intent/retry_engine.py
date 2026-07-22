@@ -15,7 +15,9 @@ class RetryEngine:
     def decide(self, node: GoalNode, error: str) -> RetryDecision:
         if node.retry_count >= 2:
             return RetryDecision(False, "Retry limit reached")
-        node.retry_history.append(RetryRecord(reason="retry", error=error, attempted_plan=node.text))
+        node.retry_history.append(
+            RetryRecord(reason="retry", error=error, attempted_plan=node.text)
+        )
         node.retry_count += 1
         return RetryDecision(True, "Retry scheduled")
 
@@ -28,6 +30,8 @@ class RetryEngine:
             node.tool = None
             node.tool_params = None
             node.children = [
-                GoalNode(text=f"Retry: {node.text}", level=node.level + 1, parent_id=node.id)
+                GoalNode(
+                    text=f"Retry: {node.text}", level=node.level + 1, parent_id=node.id
+                )
             ]
         return node

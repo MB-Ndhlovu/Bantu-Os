@@ -15,20 +15,10 @@
 #include <sys/reboot.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <pwd.h>
-#include <sys/utsname.h>
-#include <sched.h>
-
 #include "services.h"
 
-#define POWERFALL_SIG SIGTERM
-
-static volatile int running = 1;
-
-void sig_handler(int sig)
-{
-    (void)sig;
-}
+static volatile sig_atomic_t running = 1;
+static pid_t shell_pid = -1;
 
 int mount_filesystems(void)
 {
@@ -90,16 +80,21 @@ int create_device_nodes(void)
 
 void setup_signals(void)
 {
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = sig_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
+    struct sigaction ignore;
+    sigset_t blocked;
 
-    sigaction(SIGTERM, &sa, NULL);
-    sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGCHLD, &sa, NULL);
-    sigaction(SIGPIPE, &sa, NULL);
+    memset(&ignore, 0, sizeof(ignore));
+    ignore.sa_handler = SIG_IGN;
+    sigemptyset(&ignore.sa_mask);
+    if (sigaction(SIGPIPE, &ignore, NULL) != 0)
+        perror("[init] sigaction SIGPIPE failed");
+
+    sigemptyset(&blocked);
+    sigaddset(&blocked, SIGTERM);
+    sigaddset(&blocked, SIGINT);
+    sigaddset(&blocked, SIGCHLD);
+    if (sigprocmask(SIG_BLOCK, &blocked, NULL) != 0)
+        perror("[init] sigprocmask failed");
 }
 
 int setup_hostname(void)
@@ -115,30 +110,22 @@ int setup_hostname(void)
     return 0;
 }
 
-int drop_privileges(void)
-{
-    struct passwd *pw = getpwnam("nobody");
-    if (!pw)
-        pw = getpwnam("daemon");
-    if (pw) {
-        setuid(pw->pw_uid);
-        setgid(pw->pw_gid);
-    }
-    return 0;
-}
-
 int run_shell(void)
 {
     printf("[init] launching shell...\n");
 
-    pid_t pid = fork();
-    if (pid == 0) {
-        /* Child: exec shell */
+    shell_pid = fork();
+    if (shell_pid == 0) {
+        sigset_t unblocked;
+        sigemptyset(&unblocked);
+        sigprocmask(SIG_SETMASK, &unblocked, NULL);
         execl("/bin/sh", "/bin/sh", (char *)NULL);
         _exit(127);
-    } else if (pid > 0) {
-        /* Wait for shell to exit */
-        waitpid(pid, NULL, 0);
+    }
+    if (shell_pid < 0) {
+        perror("[init] fork shell failed");
+        shell_pid = -1;
+        return -1;
     }
 
     return 0;
@@ -151,8 +138,22 @@ int shutdown_system(void)
     stop_all_services();
     sync();
 
+    if (shell_pid > 0) {
+        int status;
+        pid_t result = waitpid(shell_pid, &status, WNOHANG);
+        if (result == 0) {
+            kill(shell_pid, SIGTERM);
+            waitpid(shell_pid, NULL, 0);
+        }
+        shell_pid = -1;
+    }
+
     printf("[init] rebooting...\n");
-    reboot(RB_POWER_OFF);
+    if (reboot(RB_POWER_OFF) != 0) {
+        perror("[init] reboot failed");
+        for (;;)
+            pause();
+    }
 
     return 0;
 }
@@ -161,13 +162,25 @@ void main_loop(void)
 {
     sigset_t sigs;
     sigemptyset(&sigs);
+    sigaddset(&sigs, SIGTERM);
+    sigaddset(&sigs, SIGINT);
     sigaddset(&sigs, SIGCHLD);
 
     while (running) {
         int sig;
         int ret = sigwait(&sigs, &sig);
-        if (ret == 0 && sig == SIGCHLD) {
+        if (ret != 0)
+            continue;
+        if (sig == SIGCHLD) {
             reap_service_children();
+            if (shell_pid > 0) {
+                int status;
+                pid_t result = waitpid(shell_pid, &status, WNOHANG);
+                if (result == shell_pid)
+                    shell_pid = -1;
+            }
+        } else if (sig == SIGTERM || sig == SIGINT) {
+            running = 0;
         }
     }
 }
@@ -206,17 +219,17 @@ int main(int argc, char *argv[])
         /* syslog - early priority */
         memset(&svc, 0, sizeof(svc));
         strcpy(svc.name, "syslog");
-        strcpy(svc.exec_path, "/sbin/syslogd");
+        strcpy(svc.exec_path, "/bin/true");
         svc.priority = PRIORITY_EARLY;
-        svc.restart_policy = RESTART_ALWAYS;
+        svc.restart_policy = RESTART_NONE;
         service_register(&svc);
 
         /* network - normal priority */
         memset(&svc, 0, sizeof(svc));
         strcpy(svc.name, "network");
-        strcpy(svc.exec_path, "/sbin/netmanager");
+        strcpy(svc.exec_path, "/bin/true");
         svc.priority = PRIORITY_NORMAL;
-        svc.restart_policy = RESTART_ALWAYS;
+        svc.restart_policy = RESTART_NONE;
         service_register(&svc);
     }
 
@@ -225,17 +238,27 @@ int main(int argc, char *argv[])
     /* 7. Start all services */
     start_all_services();
 
-    /* 8. Drop privileges and run shell (or hand off to AI shell) */
-    drop_privileges();
+    /* 8. Run shell while retaining root as PID 1 */
+    const char *shell_path = NULL;
+    if (access("/home/workspace/bantu_os/shell/target/release/bantu", F_OK) == 0) {
+        shell_path = "/home/workspace/bantu_os/shell/target/release/bantu";
+    } else if (access("/home/workspace/bantu_os/shell/target/debug/bantu", F_OK) == 0) {
+        shell_path = "/home/workspace/bantu_os/shell/target/debug/bantu";
+    }
 
-    /* Check if AI shell exists and use it */
-    if (access("/home/workspace/bantu_os/shell/target/debug/bantu_shell", F_OK) == 0) {
-        printf("[init] launching AI shell...\n");
-        pid_t pid = fork();
-        if (pid == 0) {
-            execl("/home/workspace/bantu_os/shell/target/debug/bantu_shell",
-                  "bantu_shell", (char *)NULL);
+    if (shell_path != NULL) {
+        printf("[init] launching AI shell: %s\n", shell_path);
+        shell_pid = fork();
+        if (shell_pid == 0) {
+            sigset_t unblocked;
+            sigemptyset(&unblocked);
+            sigprocmask(SIG_SETMASK, &unblocked, NULL);
+            execl(shell_path, "bantu", (char *)NULL);
             _exit(127);
+        }
+        if (shell_pid < 0) {
+            perror("[init] fork AI shell failed");
+            shell_pid = -1;
         }
     } else {
         run_shell();

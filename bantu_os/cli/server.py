@@ -46,6 +46,13 @@ class CLIServer:
             except OSError:
                 break
 
+    def _serve_once(self) -> None:
+        try:
+            conn, _ = self.sock.accept()
+        except OSError:
+            return
+        self._handle(conn)
+
     def _handle(self, conn: socket.socket) -> None:
         try:
             data = conn.recv(4096)

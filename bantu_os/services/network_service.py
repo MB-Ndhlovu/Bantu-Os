@@ -50,7 +50,7 @@ class NetworkService:
         *,
         headers: Optional[Dict[str, str]] = None,
         timeout: Optional[int] = None,
-    ) -> Dict[str, Any]:
+    ) -> HTTPResponse:
         """Perform HTTP GET request."""
         self._check_url_allowed(url)
 
@@ -75,24 +75,31 @@ class NetworkService:
 
                 self._log_request("GET", url, resp.status)
 
-                return {
-                    "status": resp.status,
-                    "headers": response_headers,
-                    "body": body.decode("utf-8", errors="replace"),
-                    "url": resp.url,
-                    "elapsed_ms": round(elapsed, 2),
-                }
+                return HTTPResponse(
+                    status=resp.status,
+                    headers=response_headers,
+                    body=body.decode("utf-8", errors="replace"),
+                    url=resp.url,
+                    elapsed_ms=round(elapsed, 2),
+                )
         except urllib.error.HTTPError as e:
             self._log_request("GET", url, e.code, error=str(e))
-            return {
-                "status": e.code,
-                "error": str(e),
-                "url": url,
-                "elapsed_ms": round((datetime.now() - start).total_seconds() * 1000, 2),
-            }
+            return HTTPResponse(
+                status=e.code,
+                headers={},
+                body=str(e),
+                url=url,
+                elapsed_ms=round((datetime.now() - start).total_seconds() * 1000, 2),
+            )
         except Exception as e:
             self._log_request("GET", url, 0, error=str(e))
-            raise RuntimeError(f"HTTP GET failed: {e}")
+            return HTTPResponse(
+                status=0,
+                headers={},
+                body=str(e),
+                url=url,
+                elapsed_ms=round((datetime.now() - start).total_seconds() * 1000, 2),
+            )
 
     def http_post(
         self,
@@ -102,7 +109,7 @@ class NetworkService:
         json_data: Optional[Dict] = None,
         headers: Optional[Dict[str, str]] = None,
         timeout: Optional[int] = None,
-    ) -> Dict[str, Any]:
+    ) -> HTTPResponse:
         """Perform HTTP POST request."""
         self._check_url_allowed(url)
 
@@ -136,24 +143,31 @@ class NetworkService:
 
                 self._log_request("POST", url, resp.status)
 
-                return {
-                    "status": resp.status,
-                    "headers": {k: v for k, v in resp.headers.items()},
-                    "body": body.decode("utf-8", errors="replace"),
-                    "url": resp.url,
-                    "elapsed_ms": round(elapsed, 2),
-                }
+                return HTTPResponse(
+                    status=resp.status,
+                    headers={k: v for k, v in resp.headers.items()},
+                    body=body.decode("utf-8", errors="replace"),
+                    url=resp.url,
+                    elapsed_ms=round(elapsed, 2),
+                )
         except urllib.error.HTTPError as e:
             self._log_request("POST", url, e.code, error=str(e))
-            return {
-                "status": e.code,
-                "error": str(e),
-                "url": url,
-                "elapsed_ms": round((datetime.now() - start).total_seconds() * 1000, 2),
-            }
+            return HTTPResponse(
+                status=e.code,
+                headers={},
+                body=str(e),
+                url=url,
+                elapsed_ms=round((datetime.now() - start).total_seconds() * 1000, 2),
+            )
         except Exception as e:
             self._log_request("POST", url, 0, error=str(e))
-            raise RuntimeError(f"HTTP POST failed: {e}")
+            return HTTPResponse(
+                status=0,
+                headers={},
+                body=str(e),
+                url=url,
+                elapsed_ms=round((datetime.now() - start).total_seconds() * 1000, 2),
+            )
 
     def http_request(
         self,
@@ -167,11 +181,11 @@ class NetworkService:
     ) -> Dict[str, Any]:
         """Generic HTTP request method."""
         if method.upper() == "GET":
-            return self.http_get(url, headers=headers, timeout=timeout)
+            return self.http_get(url, headers=headers, timeout=timeout).__dict__
         elif method.upper() == "POST":
             return self.http_post(
                 url, data=data, json_data=json_data, headers=headers, timeout=timeout
-            )
+            ).__dict__
         else:
             raise NotImplementedError(f"HTTP method {method} not implemented")
 
@@ -181,9 +195,9 @@ class NetworkService:
             result = self.http_get(url)
             return {
                 "url": url,
-                "reachable": True,
-                "status": result["status"],
-                "elapsed_ms": result["elapsed_ms"],
+                "reachable": result.status > 0,
+                "status": result.status,
+                "elapsed_ms": result.elapsed_ms,
                 "timestamp": datetime.now().isoformat(),
             }
         except Exception as e:
@@ -315,8 +329,14 @@ class NetworkService:
         """Get public IP address via external service."""
         try:
             result = self.http_get("https://api.ipify.org?format=json")
+            try:
+                payload = json.loads(result.body)
+            except json.JSONDecodeError:
+                payload = result.body
             return {
-                "public_ip": result["body"].get("ip", result["body"]),
+                "public_ip": (
+                    payload.get("ip", payload) if isinstance(payload, dict) else payload
+                ),
                 "timestamp": datetime.now().isoformat(),
             }
         except Exception as e:
@@ -324,6 +344,16 @@ class NetworkService:
                 "error": str(e),
                 "timestamp": datetime.now().isoformat(),
             }
+
+    def check_connectivity(self) -> Dict[str, Any]:
+        """Report basic internet connectivity without raising network errors."""
+        result = self.http_get("https://example.com")
+        return {
+            "internet": result.status > 0,
+            "status": result.status,
+            "elapsed_ms": result.elapsed_ms,
+            "timestamp": datetime.now().isoformat(),
+        }
 
     def add_allowed_host(self, host: str) -> None:
         """Add a host to the allowed list."""

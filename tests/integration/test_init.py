@@ -6,7 +6,9 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-INIT_C_PATH = REPO_ROOT / "bantu_os" / "init" / "init.c"
+INIT_DIR = REPO_ROOT / "init"
+INIT_C_PATH = INIT_DIR / "init.c"
+SERVICES_C_PATH = INIT_DIR / "services.c"
 
 
 class TestInitC:
@@ -26,6 +28,8 @@ class TestInitC:
                 "-std=c11",
                 "-Wno-unused-parameter",
                 str(INIT_C_PATH),
+                str(SERVICES_C_PATH),
+                str(INIT_C_PATH.parent / "services.c"),
             ],
             capture_output=True,
             text=True,
@@ -47,10 +51,9 @@ class TestInitC:
             text=True,
             timeout=5,
         )
-        # The init prints "[INFO] bantu_os init starting (PID 1)"
         combined = result.stdout + result.stderr
         assert (
-            "bantu_os init starting" in combined
+            "Bantu-OS init starting" in combined
         ), f"Expected init banner in output:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
 
     def test_init_registers_services(self, init_binary: Path):
@@ -60,9 +63,8 @@ class TestInitC:
             text=True,
             timeout=5,
         )
-        # Check that all three registered services appear in output
         combined = result.stdout + result.stderr
-        for svc in ("systemd", "logger", "netmanager"):
+        for svc in ("syslog", "network"):
             assert (
                 svc in combined
             ), f"Service {svc!r} not registered in init output:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"

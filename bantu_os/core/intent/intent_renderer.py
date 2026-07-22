@@ -7,7 +7,13 @@ class IntentRenderer:
     def render(self, tree: GoalTree, verbose: bool = False) -> str:
         lines = [f"Goal: {tree.root_goal}"]
         for child in tree.root.children:
-            self._render_node(child, lines, prefix="", is_last=child is tree.root.children[-1], verbose=verbose)
+            self._render_node(
+                child,
+                lines,
+                prefix="",
+                is_last=child is tree.root.children[-1],
+                verbose=verbose,
+            )
         return "\n".join(lines)
 
     def _render_node(
@@ -30,4 +36,6 @@ class IntentRenderer:
         lines.append(f"{prefix}{connector} {status_symbol} {node.text}{extra}")
         next_prefix = f"{prefix}{'   ' if is_last else '│  '}"
         for index, child in enumerate(node.children):
-            self._render_node(child, lines, next_prefix, index == len(node.children) - 1, verbose)
+            self._render_node(
+                child, lines, next_prefix, index == len(node.children) - 1, verbose
+            )

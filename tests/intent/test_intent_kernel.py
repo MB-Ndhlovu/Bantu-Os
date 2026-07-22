@@ -8,7 +8,9 @@ from bantu_os.core.intent.intent_kernel import IntentKernel
 class StubPlanner:
     async def decompose(self, text, context=None):
         root = GoalNode(text=text, level=0)
-        root.add_child(GoalNode(text="do work", level=1, tool="echo", tool_params={"value": "ok"}))
+        root.add_child(
+            GoalNode(text="do work", level=1, tool="echo", tool_params={"value": "ok"})
+        )
         return GoalTree(root=root)
 
 
@@ -39,7 +41,11 @@ async def test_intent_kernel_clarification_path():
     class ClarifyPlanner:
         async def decompose(self, text, context=None):
             root = GoalNode(text=text, level=0)
-            return GoalTree(root=root, clarification_needed=True, clarification_question="Which one?")
+            return GoalTree(
+                root=root,
+                clarification_needed=True,
+                clarification_question="Which one?",
+            )
 
     agent = AgentManager()
     kernel = IntentKernel(agent_manager=agent, planner=ClarifyPlanner())

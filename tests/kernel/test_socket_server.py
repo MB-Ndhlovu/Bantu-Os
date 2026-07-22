@@ -451,7 +451,9 @@ async def test_intent_streaming_frames(server, socket_path):
     reader, writer = await connect(socket_path)
     try:
         writer.write(
-            json.dumps({"cmd": "intent", "text": "deploy project", "stream": True}).encode("utf-8")
+            json.dumps(
+                {"cmd": "intent", "text": "deploy project", "stream": True}
+            ).encode("utf-8")
             + b"\n"
         )
         await writer.drain()
@@ -470,7 +472,9 @@ async def test_intent_confirmation_round_trip(server, socket_path):
     reader, writer = await connect(socket_path)
     try:
         writer.write(
-            json.dumps({"cmd": "intent", "text": "delete temporary files", "stream": True}).encode("utf-8")
+            json.dumps(
+                {"cmd": "intent", "text": "delete temporary files", "stream": True}
+            ).encode("utf-8")
             + b"\n"
         )
         await writer.drain()
@@ -482,7 +486,13 @@ async def test_intent_confirmation_round_trip(server, socket_path):
         pending = json.loads((await reader.readline()).decode("utf-8"))
         if pending.get("type") == "confirmation_required":
             writer.write(
-                json.dumps({"cmd": "confirm", "step_id": pending["step_id"], "decision": "approve"}).encode("utf-8")
+                json.dumps(
+                    {
+                        "cmd": "confirm",
+                        "step_id": pending["step_id"],
+                        "decision": "approve",
+                    }
+                ).encode("utf-8")
                 + b"\n"
             )
             await writer.drain()

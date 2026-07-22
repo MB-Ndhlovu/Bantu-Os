@@ -1,10 +1,6 @@
 //! Bantu-OS Shell — AI REPL
 //! Layer 2: Rust shell connecting to Layer 3 Python AI engine.
 
-use std::io::{self, Read, Write};
-use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::Highlighter;
@@ -12,6 +8,9 @@ use rustyline::hint::Hinter;
 use rustyline::history::DefaultHistory;
 use rustyline::validate::Validator;
 use rustyline::{Context, Editor, Helper};
+use std::io::{self, Read, Write};
+use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 mod parser;
 mod tools;
@@ -34,7 +33,9 @@ impl Completer for CommandCompleter {
         pos: usize,
         _ctx: &Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Pair>)> {
-        let start = line[..pos].rfind(char::is_whitespace).map_or(0, |index| index + 1);
+        let start = line[..pos]
+            .rfind(char::is_whitespace)
+            .map_or(0, |index| index + 1);
         let prefix = &line[start..pos];
         let matches = self
             .commands
@@ -151,12 +152,18 @@ fn save_history(editor: &mut Editor<CommandCompleter, DefaultHistory>) {
 
 fn shell_commands(registry: &tools::ToolRegistry) -> Vec<String> {
     let mut commands = vec![
-        "ai", "ai on", "ai off", "clear", "exit", "help", "login", "logout", "quit", "status", "whoami",
+        "ai", "ai on", "ai off", "clear", "exit", "help", "login", "logout", "quit", "status",
+        "whoami",
     ]
     .into_iter()
     .map(String::from)
     .collect::<Vec<_>>();
-    commands.extend(registry.list_tools().into_iter().map(|tool| tool.name.clone()));
+    commands.extend(
+        registry
+            .list_tools()
+            .into_iter()
+            .map(|tool| tool.name.clone()),
+    );
     commands.sort();
     commands.dedup();
     commands
@@ -204,7 +211,11 @@ fn process_input(input: &str, registry: &tools::ToolRegistry) -> Option<String> 
             std::io::stdout().flush().ok();
             return None;
         }
-        "ai" => return Some("Usage: ai <your message>. Or type 'ai on' for persistent goal mode.".to_string()),
+        "ai" => {
+            return Some(
+                "Usage: ai <your message>. Or type 'ai on' for persistent goal mode.".to_string(),
+            )
+        }
         "ai on" => {
             AI_MODE.store(true, Ordering::SeqCst);
             return Some("AI mode enabled. Speak your goal naturally or type 'ai off' to return to shell mode.".to_string());
@@ -245,7 +256,13 @@ fn process_input(input: &str, registry: &tools::ToolRegistry) -> Option<String> 
 
     match parser::parse(trimmed) {
         Ok(call) => match registry.execute(&call.tool, &call.args) {
-            Ok(output) => if output.is_empty() { None } else { Some(output) },
+            Ok(output) => {
+                if output.is_empty() {
+                    None
+                } else {
+                    Some(output)
+                }
+            }
             Err(e) => Some(format!("Error: {:?}", e)),
         },
         Err(_) => {
@@ -259,11 +276,18 @@ fn process_input(input: &str, registry: &tools::ToolRegistry) -> Option<String> 
                 Ok(out) => {
                     if out.status.success() {
                         let stdout = String::from_utf8_lossy(&out.stdout);
-                        if stdout.is_empty() { None } else { Some(stdout.to_string()) }
+                        if stdout.is_empty() {
+                            None
+                        } else {
+                            Some(stdout.to_string())
+                        }
                     } else {
                         let stderr = String::from_utf8_lossy(&out.stderr);
                         if stderr.is_empty() {
-                            Some(format!("Command exited with code {}", out.status.code().unwrap_or(1)))
+                            Some(format!(
+                                "Command exited with code {}",
+                                out.status.code().unwrap_or(1)
+                            ))
                         } else {
                             Some(stderr.to_string())
                         }
@@ -292,7 +316,10 @@ fn handle_ai_input(input: &str) {
     };
     let request = serde_json::json!({"cmd": "intent", "text": query, "stream": true});
     let msg = serde_json::to_string(&request).unwrap();
-    if let Err(e) = sock.write_all(msg.as_bytes()).and_then(|_| sock.write_all(b"\n")) {
+    if let Err(e) = sock
+        .write_all(msg.as_bytes())
+        .and_then(|_| sock.write_all(b"\n"))
+    {
         println!("AI unavailable: write failed ({})", e);
         return;
     }
@@ -300,7 +327,7 @@ fn handle_ai_input(input: &str) {
     // for streaming responses. The original `sock` keeps write access so we can
     // answer confirmation prompts on the same connection.
     let read_stream = sock.try_clone().expect("clone socket for read half");
-    let mut reader = std::io::BufReader::new(read_stream);
+    let reader = std::io::BufReader::new(read_stream);
     use std::io::BufRead;
     let mut lines = reader.lines();
     loop {
@@ -323,7 +350,10 @@ fn handle_ai_input(input: &str) {
         let kind = resp["type"].as_str().unwrap_or("");
         match kind {
             "clarification_needed" => {
-                println!("{}", resp["question"].as_str().unwrap_or("Could you clarify?"));
+                println!(
+                    "{}",
+                    resp["question"].as_str().unwrap_or("Could you clarify?")
+                );
             }
             "goal_update" => {
                 if let Some(msg) = resp["message"].as_str() {
@@ -368,7 +398,10 @@ fn handle_ai_input(input: &str) {
                 break;
             }
             "goal_failed" => {
-                println!("Goal failed: {}", resp["error"].as_str().unwrap_or("unknown"));
+                println!(
+                    "Goal failed: {}",
+                    resp["error"].as_str().unwrap_or("unknown")
+                );
                 break;
             }
             _ => {
@@ -390,7 +423,10 @@ fn handle_raw_json(json_input: &str) -> String {
     };
 
     let msg = json_input.to_string();
-    if let Err(e) = sock.write_all(msg.as_bytes()).and_then(|_| sock.write_all(b"\n")) {
+    if let Err(e) = sock
+        .write_all(msg.as_bytes())
+        .and_then(|_| sock.write_all(b"\n"))
+    {
         return format!("Write error: {e}");
     }
 
@@ -404,7 +440,10 @@ fn handle_raw_json(json_input: &str) -> String {
 
     if let Ok(resp) = serde_json::from_str::<serde_json::Value>(&response) {
         if resp["ok"].as_bool() == Some(true) {
-            return resp["result"].as_str().unwrap_or("(no response)").to_string();
+            return resp["result"]
+                .as_str()
+                .unwrap_or("(no response)")
+                .to_string();
         } else {
             return format!("Error: {}", resp["error"].as_str().unwrap_or("unknown"));
         }
@@ -462,9 +501,17 @@ fn send_kernel_cmd(json_cmd: &str) -> Option<String> {
 
     if let Ok(resp) = serde_json::from_str::<serde_json::Value>(&response) {
         if resp["ok"].as_bool() == Some(true) {
-            return Some(resp["result"].as_str().unwrap_or("(no response)").to_string());
+            return Some(
+                resp["result"]
+                    .as_str()
+                    .unwrap_or("(no response)")
+                    .to_string(),
+            );
         } else {
-            return Some(format!("Error: {}", resp["error"].as_str().unwrap_or("unknown")));
+            return Some(format!(
+                "Error: {}",
+                resp["error"].as_str().unwrap_or("unknown")
+            ));
         }
     }
     Some(String::from("(invalid response)"))
@@ -483,8 +530,19 @@ fn get_status() -> String {
     let socket_exists = std::path::Path::new(SOCKET_PATH).exists();
     let ai_mode = AI_MODE.load(Ordering::SeqCst);
     let mut s = String::from("=== Bantu-OS Status ===\n");
-    s.push_str(&format!("Socket:  {} ({})\n", SOCKET_PATH, if socket_exists { "available" } else { "not found" }));
-    s.push_str(&format!("AI mode: {}\n", if ai_mode { "enabled" } else { "disabled" }));
+    s.push_str(&format!(
+        "Socket:  {} ({})\n",
+        SOCKET_PATH,
+        if socket_exists {
+            "available"
+        } else {
+            "not found"
+        }
+    ));
+    s.push_str(&format!(
+        "AI mode: {}\n",
+        if ai_mode { "enabled" } else { "disabled" }
+    ));
     s.push_str(&format!("History: {} (file-backed)\n", HISTORY_FILE));
     if !socket_exists {
         s.push_str("\nHint: Run ./start.sh to start the kernel server");

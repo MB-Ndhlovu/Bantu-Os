@@ -65,7 +65,7 @@ fn dispatch(tokens: &[String]) -> Result<(&str, Vec<&str>), String> {
     let all_lower = tokens.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>();
     let all_lower_first = first.to_lowercase();
     let joined = all_lower.join(" ");
-    
+
     // Single-word tool dispatch (check first for exact matches)
     let tool = match all_lower_first.as_str() {
         "list" | "ls" => "ls",
@@ -97,15 +97,40 @@ fn dispatch(tokens: &[String]) -> Result<(&str, Vec<&str>), String> {
                 "ls"
             }
         }
-        "where" => "pwd",
+        "where" => {
+            if joined == "where am i" || joined == "where current" {
+                "pwd"
+            } else if joined.starts_with("where is ") {
+                "grep"
+            } else {
+                "pwd"
+            }
+        }
+        "who" => {
+            if joined.contains("user") {
+                "whoami"
+            } else {
+                "who"
+            }
+        }
         _ => first,
     };
 
     // Handle multi-word patterns that need post-processing
     // "where am i" / "where current" → pwd (handled in match above)
     // "where is X" → grep (search for X)
-    if tool == "pwd" && joined.contains("where") && joined.contains("is ") {
+    if tool == "grep" && joined.starts_with("where is ") {
         return Ok(("grep", tokens[1..].iter().map(|s| s.as_str()).collect()));
+    }
+
+    if tool == "ls" && matches!(all_lower_first.as_str(), "list" | "ls") {
+        let listing_words = ["files", "file", "in", "the", "current", "directory", "here"];
+        if tokens[1..]
+            .iter()
+            .all(|token| listing_words.contains(&token.to_lowercase().as_str()))
+        {
+            return Ok(("ls", Vec::new()));
+        }
     }
 
     let args: Vec<&str> = tokens[1..].iter().map(|s| s.as_str()).collect();

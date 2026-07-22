@@ -5,7 +5,9 @@ from bantu_os.core.intent.goal_planner import GoalPlanner
 
 class DummyLLM:
     async def generate(self, *, messages, temperature=0.2):
-        return {"text": '{"root_goal":"deploy","steps":[{"id":"1","text":"test","tool":"process","params":{},"requires":[],"destructive":false,"children":[]}]}' }
+        return {
+            "text": '{"root_goal":"deploy","steps":[{"id":"1","text":"test","tool":"process","params":{},"requires":[],"destructive":false,"children":[]}]}'
+        }
 
 
 @pytest.mark.asyncio
@@ -27,7 +29,9 @@ async def test_goal_planner_validation_rejects_unknown_tool():
 async def test_goal_planner_can_return_clarification():
     class ClarifyLLM:
         async def generate(self, *, messages, temperature=0.2):
-            return {"text": '{"root_goal":"deploy","steps":[],"clarification_needed":true,"clarification_question":"Which project should I deploy?"}' }
+            return {
+                "text": '{"root_goal":"deploy","steps":[],"clarification_needed":true,"clarification_question":"Which project should I deploy?"}'
+            }
 
     planner = GoalPlanner(llm_manager=ClarifyLLM(), available_tools=[])
     tree = await planner.decompose("deploy")

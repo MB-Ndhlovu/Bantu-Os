@@ -3,14 +3,13 @@ from __future__ import annotations
 import asyncio
 from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 
-from bantu_os.agents.agent_manager import AgentManager
 
 from .confirmation_gate import ConfirmationGate, ConfirmationRequest
-from .execution_monitor import ExecutionMonitor, GoalEvent
+from .execution_monitor import ExecutionMonitor
 from .goal_planner import GoalPlanner
 from .goal_tree import GoalNode, GoalStatus, GoalTree
 from .intent_renderer import IntentRenderer
-from .retry_engine import RetryDecision, RetryEngine
+from .retry_engine import RetryEngine
 
 ConfirmationResolver = Callable[[ConfirmationRequest], Awaitable[str]]
 
@@ -69,7 +68,9 @@ class IntentKernel:
         resolver: ConfirmationResolver | None = None,
     ) -> dict[str, Any]:
         updates: list[dict[str, Any]] = []
-        async for message in self.receive_streaming(text, context=context, resolver=resolver):
+        async for message in self.receive_streaming(
+            text, context=context, resolver=resolver
+        ):
             updates.append(message)
         if not updates:
             return {"ok": False, "error": "Intent produced no response"}
@@ -78,7 +79,9 @@ class IntentKernel:
             final = {
                 "ok": True,
                 "type": "goal_complete",
-                "summary": self.renderer.render(self._last_tree) if self._last_tree else "",
+                "summary": (
+                    self.renderer.render(self._last_tree) if self._last_tree else ""
+                ),
                 "tree": self._last_tree.to_dict() if self._last_tree else None,
             }
         final["updates"] = updates[:-1]
@@ -105,7 +108,8 @@ class IntentKernel:
             yield {
                 "ok": True,
                 "type": "clarification_needed",
-                "question": tree.clarification_question or "Could you clarify your goal?",
+                "question": tree.clarification_question
+                or "Could you clarify your goal?",
                 "tree": tree.to_dict(),
             }
             return
@@ -184,7 +188,9 @@ class IntentKernel:
 
         # Leaf: confirmation gate first.
         if self._needs_confirmation(node):
-            await self._handle_confirmation(node, tree, resolver)
+            approved = await self._handle_confirmation(node, tree, resolver)
+            if not approved:
+                return
 
         # Execute with retry ladder.
         attempt = 0
@@ -199,7 +205,9 @@ class IntentKernel:
                 return
             except asyncio.TimeoutError:
                 error = f"Tool '{node.tool}' timed out after {self.tool_timeout}s"
-            except Exception as exc:  # noqa: BLE001 — surface any tool failure for retry
+            except (
+                Exception
+            ) as exc:  # noqa: BLE001 — surface any tool failure for retry
                 error = str(exc) or exc.__class__.__name__
 
             self.monitor.emit("TASK_FAILED", node.id, error)
@@ -207,8 +215,8 @@ class IntentKernel:
             if not decision.should_retry or attempt > self.max_retries:
                 node.mark_failed(error)
                 raise RuntimeError(error)
-            # Replan: RetryEngine.replan appends a retry child and clears tool binding.
-            self.retry_engine.replan(node, error)
+            # Retry the same leaf with its original tool binding. The failed
+            # attempt has already been recorded by RetryEngine.decide().
             yield_frame = {
                 "ok": True,
                 "type": "goal_update",
@@ -233,7 +241,7 @@ class IntentKernel:
         node: GoalNode,
         tree: GoalTree,
         resolver: ConfirmationResolver | None,
-    ) -> None:
+    ) -> bool:
         request = self.confirmation_gate.build_request(node, step_id=node.id)
         if resolver is None:
             # No interactive resolver available — default to skip so the goal
@@ -241,30 +249,33 @@ class IntentKernel:
             node.status = GoalStatus.BLOCKED
             node.error = "Destructive step skipped (no confirmation resolver)"
             self.monitor.emit("TASK_SKIPPED", node.id, node.error)
-            return
+            return False
 
         decision = await resolver(request)
         if decision == "approve":
             self._approved.add((node.text, node.tool))
-            return
+            return True
         if decision == "skip":
             node.status = GoalStatus.BLOCKED
             node.error = "Skipped by user"
             self.monitor.emit("TASK_SKIPPED", node.id, node.error)
-            return
+            return False
         if decision == "abort":
             raise _AbortGoal(node.id)
         # "explain" or anything else: treat as skip for safety.
         node.status = GoalStatus.BLOCKED
         node.error = "Skipped (unrecognised confirmation response)"
         self.monitor.emit("TASK_SKIPPED", node.id, node.error)
+        return False
 
     # ------------------------------------------------------------------
     # Leaf execution via AgentManager
     # ------------------------------------------------------------------
     async def _execute_leaf(self, node: GoalNode) -> str:
         if node.tool and hasattr(self.agent_manager, "_execute_tool_call"):
-            outcome = await self.agent_manager._execute_tool_call(node.tool, node.tool_params or {})
+            outcome = await self.agent_manager._execute_tool_call(
+                node.tool, node.tool_params or {}
+            )
             if isinstance(outcome, str):
                 if outcome.lower().startswith("unknown tool"):
                     return str(await self.agent_manager.execute(node.text))
