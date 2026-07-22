@@ -24,10 +24,11 @@ from .llm_manager import LLMManager
 from .providers.base import ChatMessage, GenerateResult
 
 # Compiled once at module load — matches [TOOL_CALL] name args:{...} [/TOOL_CALL]
-_TOOL_CALL_RE = re.compile(
-    r"\[TOOL_CALL\]\s*(\w+)\s+args:(\{[^}]*\})\s*\[/TOOL_CALL\]",
+_TOOL_CALL_START_RE = re.compile(
+    r"\[TOOL_CALL\]\s*([A-Za-z0-9_.-]+)\s+args:\s*",
     re.DOTALL,
 )
+_TOOL_CALL_END = "[/TOOL_CALL]"
 
 
 class Kernel:
@@ -220,33 +221,61 @@ class Kernel:
         for call in calls:
             name = call.get("name", "")
             args = call.get("args", {})
+            if name not in self.tools:
+                outcomes.append({"name": name, "error": f"Tool not found: {name}"})
+                continue
             try:
                 raw = self.tools[name](**args)
                 resolved = await raw if hasattr(raw, "__await__") else raw
                 outcomes.append({"name": name, "result": resolved})
-            except KeyError:
-                outcomes.append({"name": name, "error": f"Tool not found: {name}"})
             except Exception as exc:
                 outcomes.append({"name": name, "error": str(exc)})
         return outcomes
 
     @staticmethod
     def _parse_tool_calls(text: str) -> List[Dict[str, Any]]:
-        """Extract tool calls from LLM output text.
-
-        Supports format: [TOOL_CALL] name args:{...} [/TOOL_CALL]
-        The regex uses DOTALL so {...} can contain newlines.
-
-        Returns list of dicts with keys: name (str), args (dict).
-        """
-        calls = []
-        for m in _TOOL_CALL_RE.finditer(text):
-            name = m.group(1)
+        """Extract tool calls with dotted names and nested JSON arguments."""
+        calls: List[Dict[str, Any]] = []
+        cursor = 0
+        while True:
+            match = _TOOL_CALL_START_RE.search(text, cursor)
+            if match is None:
+                break
+            name = match.group(1)
+            start = match.end()
+            end = start
+            if start < len(text) and text[start] == "{":
+                depth = 0
+                in_string = False
+                escaped = False
+                for index in range(start, len(text)):
+                    char = text[index]
+                    if in_string:
+                        if escaped:
+                            escaped = False
+                        elif char == "\\":
+                            escaped = True
+                        elif char == '"':
+                            in_string = False
+                        continue
+                    if char == '"':
+                        in_string = True
+                    elif char == "{":
+                        depth += 1
+                    elif char == "}":
+                        depth -= 1
+                        if depth == 0:
+                            end = index + 1
+                            break
+            close = text.find(_TOOL_CALL_END, end if end > start else start)
+            raw_args = text[start:end] if end > start else ""
             try:
-                args = json.loads(m.group(2))
-            except Exception:
+                parsed_args = json.loads(raw_args)
+                args = parsed_args if isinstance(parsed_args, dict) else {}
+            except (TypeError, json.JSONDecodeError):
                 args = {}
             calls.append({"name": name, "args": args})
+            cursor = close + len(_TOOL_CALL_END) if close >= 0 else max(end, match.end())
         return calls
 
     async def agentic_loop(
@@ -277,7 +306,11 @@ class Kernel:
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
 
+        if max_iterations < 1:
+            raise ValueError("max_iterations must be at least 1")
+
         messages.append({"role": "user", "content": text})
+        output_text = ""
 
         for _ in range(max_iterations):
             result = await self.llm.generate(
@@ -285,7 +318,7 @@ class Kernel:
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
-            output_text = result.get("text", "")
+            output_text = str(result.get("text") or "")
 
             calls = self._parse_tool_calls(output_text)
             if not calls:

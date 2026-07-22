@@ -20,7 +20,7 @@ def server(tmp_path):
 
 
 def test_server_ping(server):
-    server.start(background=False)
+    server.start(background=True)
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.connect(server.socket_path)
     sock.sendall(json.dumps({"cmd": "ping"}).encode())
@@ -31,7 +31,7 @@ def test_server_ping(server):
 
 
 def test_server_status(server):
-    server.start(background=False)
+    server.start(background=True)
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.connect(server.socket_path)
     sock.sendall(json.dumps({"cmd": "status"}).encode())
@@ -43,7 +43,7 @@ def test_server_status(server):
 
 
 def test_server_unknown_command(server):
-    server.start(background=False)
+    server.start(background=True)
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.connect(server.socket_path)
     sock.sendall(json.dumps({"cmd": "unknown"}).encode())

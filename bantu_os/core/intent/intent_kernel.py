@@ -184,7 +184,9 @@ class IntentKernel:
 
         # Leaf: confirmation gate first.
         if self._needs_confirmation(node):
-            await self._handle_confirmation(node, tree, resolver)
+            approved = await self._handle_confirmation(node, tree, resolver)
+            if not approved:
+                return
 
         # Execute with retry ladder.
         attempt = 0
@@ -207,8 +209,8 @@ class IntentKernel:
             if not decision.should_retry or attempt > self.max_retries:
                 node.mark_failed(error)
                 raise RuntimeError(error)
-            # Replan: RetryEngine.replan appends a retry child and clears tool binding.
-            self.retry_engine.replan(node, error)
+            # Retry the same leaf with its original tool binding. The failed
+            # attempt has already been recorded by RetryEngine.decide().
             yield_frame = {
                 "ok": True,
                 "type": "goal_update",
@@ -233,7 +235,7 @@ class IntentKernel:
         node: GoalNode,
         tree: GoalTree,
         resolver: ConfirmationResolver | None,
-    ) -> None:
+    ) -> bool:
         request = self.confirmation_gate.build_request(node, step_id=node.id)
         if resolver is None:
             # No interactive resolver available — default to skip so the goal
@@ -241,23 +243,24 @@ class IntentKernel:
             node.status = GoalStatus.BLOCKED
             node.error = "Destructive step skipped (no confirmation resolver)"
             self.monitor.emit("TASK_SKIPPED", node.id, node.error)
-            return
+            return False
 
         decision = await resolver(request)
         if decision == "approve":
             self._approved.add((node.text, node.tool))
-            return
+            return True
         if decision == "skip":
             node.status = GoalStatus.BLOCKED
             node.error = "Skipped by user"
             self.monitor.emit("TASK_SKIPPED", node.id, node.error)
-            return
+            return False
         if decision == "abort":
             raise _AbortGoal(node.id)
         # "explain" or anything else: treat as skip for safety.
         node.status = GoalStatus.BLOCKED
         node.error = "Skipped (unrecognised confirmation response)"
         self.monitor.emit("TASK_SKIPPED", node.id, node.error)
+        return False
 
     # ------------------------------------------------------------------
     # Leaf execution via AgentManager

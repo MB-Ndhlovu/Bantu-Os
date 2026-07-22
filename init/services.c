@@ -6,6 +6,7 @@
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <string.h>
 #include <strings.h>
 #include <unistd.h>
@@ -24,8 +25,7 @@ static int svc_count = 0;
 /* Initialize the service registry */
 void service_registry_init(void)
 {
-    service_list = NULL;
-    svc_count = 0;
+    service_free_registry();
 }
 
 /* Allocate and register a service */
@@ -84,6 +84,8 @@ int service_unregister(const char *name)
                 prev->next = cur->next;
             else
                 service_list = cur->next;
+            for (int i = 0; i < cur->argc; i++)
+                free(cur->argv[i]);
             free(cur);
             svc_count--;
             return 0;
@@ -100,6 +102,8 @@ void service_free_registry(void)
     service_t *cur = service_list;
     while (cur) {
         service_t *next = cur->next;
+        for (int i = 0; i < cur->argc; i++)
+            free(cur->argv[i]);
         free(cur);
         cur = next;
     }
@@ -128,6 +132,7 @@ int start_service(service_t *svc)
         }
     }
 
+    svc->state = SERVICE_STARTING;
     pid_t pid = fork();
     if (pid == 0) {
         /* Child process */
@@ -145,6 +150,7 @@ int start_service(service_t *svc)
     }
 
     perror("[init] fork failed");
+    svc->state = SERVICE_FAILED;
     return -1;
 }
 
@@ -158,14 +164,21 @@ int stop_service(service_t *svc)
         svc->on_stop();
 
     svc->state = SERVICE_STOPPING;
-    if (kill(svc->pid, SIGTERM) != 0) {
+    pid_t pid = svc->pid;
+    if (kill(pid, SIGTERM) != 0 && errno != ESRCH) {
         perror("[init] SIGTERM failed");
+        svc->state = SERVICE_FAILED;
         return -1;
     }
 
     int status;
-    if (waitpid(svc->pid, &status, 0) < 0)
-        perror("[init] waitpid failed");
+    while (waitpid(pid, &status, 0) < 0) {
+        if (errno == EINTR)
+            continue;
+        if (errno != ECHILD)
+            perror("[init] waitpid failed");
+        break;
+    }
 
     svc->state = SERVICE_STOPPED;
     svc->pid = -1;
@@ -248,7 +261,14 @@ void reap_service_children(void)
         service_t *svc = service_list;
         while (svc) {
             if (svc->pid == pid) {
-                svc->exit_code = WEXITSTATUS(status);
+                if (WIFEXITED(status))
+                    svc->exit_code = WEXITSTATUS(status);
+                else if (WIFSIGNALED(status))
+                    svc->exit_code = 128 + WTERMSIG(status);
+                else
+                    svc->exit_code = -1;
+                svc->pid = -1;
+                svc->state = SERVICE_STOPPED;
                 printf("[init] %s exited (code %d)\n",
                        svc->name, svc->exit_code);
 
@@ -300,10 +320,14 @@ int load_services_from_config(const char *path)
 /* Parse a single config line: name:priority:path[:arg1:arg2:...] */
 int parse_config_line(const char *line, service_t *svc)
 {
+    if (!line || !svc)
+        return -1;
+
     memset(svc, 0, sizeof(service_t));
 
     char copy[512];
     strncpy(copy, line, sizeof(copy) - 1);
+    copy[sizeof(copy) - 1] = '\0';
 
     char *fields[32];
     int n = 0;
@@ -324,7 +348,14 @@ int parse_config_line(const char *line, service_t *svc)
 
     /* Parse extra args */
     for (int i = 3; i < n && svc->argc < MAX_ARGS - 1; i++) {
-        svc->argv[svc->argc++] = strdup(fields[i]);
+        svc->argv[svc->argc] = strdup(fields[i]);
+        if (!svc->argv[svc->argc]) {
+            for (int j = 0; j < svc->argc; j++)
+                free(svc->argv[j]);
+            svc->argc = 0;
+            return -1;
+        }
+        svc->argc++;
     }
 
     return 0;

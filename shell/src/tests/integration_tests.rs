@@ -15,7 +15,6 @@ fn test_integration_list_command() {
 
 #[test]
 fn test_integration_cat_command() {
-    let registry = ToolRegistry::new();
     let result = parser::parse("cat /etc/hostname");
     assert!(result.is_ok());
     let call = result.unwrap();
@@ -24,7 +23,6 @@ fn test_integration_cat_command() {
 
 #[test]
 fn test_integration_ps_command() {
-    let registry = ToolRegistry::new();
     let result = parser::parse("show processes");
     assert!(result.is_ok());
     let call = result.unwrap();
@@ -43,7 +41,7 @@ fn test_natural_language_parsing() {
         ("show ./some/path", "cat"),
         ("where is file.txt", "grep"),
     ];
-    
+
     for (input, expected_tool) in test_cases {
         let result = parser::parse(input);
         assert!(result.is_ok(), "Failed to parse: {}", input);

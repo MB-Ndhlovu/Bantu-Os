@@ -359,8 +359,9 @@ class SessionManager:
 
     async def destroy_user(self, username: str) -> None:
         async with self._lock:
-            if username in self._username_index:
-                await self.destroy_session(self._username_index[username])
+            session_id = self._username_index.pop(username, None)
+            if session_id is not None:
+                self._sessions.pop(session_id, None)
 
     async def list_sessions(self) -> List[Dict[str, Any]]:
         async with self._lock:

@@ -471,9 +471,12 @@ class ShellProtocol(asyncio.Protocol):
             result = method(**tool_args)
 
             import inspect
+            from dataclasses import asdict, is_dataclass
 
             if inspect.iscoroutine(result):
                 result = await result
+            if is_dataclass(result):
+                result = asdict(result)
             if isinstance(result, (dict, list)):
                 result = json.dumps(result)
             return {"ok": True, "result": result}

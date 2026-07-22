@@ -64,6 +64,55 @@ class FileService:
             "timestamp": datetime.now().isoformat(),
         }
 
+    def read_file(
+        self, path: str, max_bytes: int = 1_000_000, encoding: str = "utf-8"
+    ) -> str:
+        return self.read(path, max_bytes=max_bytes, encoding=encoding)
+
+    def write_file(
+        self,
+        path: str,
+        content: str,
+        *,
+        allow_overwrite: bool = True,
+        create_parents: bool = True,
+        encoding: str = "utf-8",
+    ) -> Dict[str, Any]:
+        return self.write(
+            path,
+            content,
+            allow_overwrite=allow_overwrite,
+            create_parents=create_parents,
+            encoding=encoding,
+        )
+
+    def delete_file(self, path: str, *, confirm: bool = True) -> bool:
+        return self.delete(path, confirm=confirm)
+
+    def list_directory(self, path: str, recursive: bool = False) -> List[Dict[str, Any]]:
+        return self.list_dir(path, recursive=recursive)
+
+    def create_directory(self, path: str) -> Dict[str, Any]:
+        return self.ensure_dir(path)
+
+    def copy_file(
+        self, src: str, dst: str, *, allow_overwrite: bool = True
+    ) -> Dict[str, Any]:
+        return self.copy(src, dst, allow_overwrite=allow_overwrite)
+
+    def move_file(
+        self, src: str, dst: str, *, allow_overwrite: bool = True
+    ) -> Dict[str, Any]:
+        return self.move(src, dst, allow_overwrite=allow_overwrite)
+
+    def get_file_info(self, path: str) -> Dict[str, Any]:
+        p = Path(path)
+        if not p.exists():
+            return {"path": str(p), "exists": False}
+        info = self.stat(path)
+        info["exists"] = True
+        return info
+
     def append(
         self, path: str, content: str, encoding: str = "utf-8"
     ) -> Dict[str, Any]:
