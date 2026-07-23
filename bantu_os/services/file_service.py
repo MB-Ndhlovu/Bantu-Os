@@ -20,6 +20,25 @@ class FileService:
     def __init__(self, base_path: str = "/home/workspace"):
         self.base_path = Path(base_path)
         self._operation_log: List[Dict[str, Any]] = []
+        self._running = False
+
+    def start(self) -> None:
+        """Mark the file service as available."""
+        self.base_path.mkdir(parents=True, exist_ok=True)
+        self._running = True
+
+    def stop(self) -> None:
+        """Stop the file service without altering user data."""
+        self._running = False
+
+    def health_check(self) -> Dict[str, Any]:
+        """Return file-service lifecycle health without modifying files."""
+        return {
+            "status": "ok" if self._running and self.base_path.is_dir() else "stopped",
+            "service": "file",
+            "base_path": str(self.base_path),
+            "base_path_exists": self.base_path.is_dir(),
+        }
 
     def read(
         self, path: str, max_bytes: int = 1_000_000, encoding: str = "utf-8"

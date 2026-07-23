@@ -91,6 +91,15 @@ int service_register(service_t *svc)
     return 0;
 }
 
+void service_set_external_state(const char *name, pid_t pid, service_state_t state)
+{
+    service_t *svc = service_find(name);
+    if (svc) {
+        svc->pid = pid;
+        svc->state = state;
+    }
+}
+
 /* Find service by name */
 service_t *service_find(const char *name)
 {

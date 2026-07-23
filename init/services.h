@@ -100,4 +100,6 @@ const char *service_state_str(service_state_t state);
 const char *service_priority_str(service_priority_t prio);
 void dump_services(void);
 
+void service_set_external_state(const char *name, pid_t pid, service_state_t state);
+
 #endif /* BANTU_SERVICES_H */

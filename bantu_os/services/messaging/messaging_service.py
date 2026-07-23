@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -32,6 +33,9 @@ from typing import Any
 import aiohttp
 
 from bantu_os.services.service_base import ServiceBase
+HTTP_TIMEOUT = aiohttp.ClientTimeout(total=15)
+E164_PATTERN = re.compile(r"^\\+[1-9]\\d{7,14}$")
+EMAIL_PATTERN = re.compile(r"^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
 
 
 class MessagingService(ServiceBase):
@@ -44,7 +48,10 @@ class MessagingService(ServiceBase):
     def __init__(self) -> None:
         super().__init__(name="messaging")
         self._smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
-        self._smtp_port = int(os.getenv("SMTP_PORT", "587"))
+        try:
+            self._smtp_port = int(os.getenv("SMTP_PORT", "587"))
+        except ValueError:
+            self._smtp_port = 587
         self._smtp_username = os.getenv("SMTP_USERNAME", "")
         self._smtp_password = os.getenv("SMTP_PASSWORD", "")
         self._smtp_default_from = os.getenv("SMTP_DEFAULT_FROM", "")
@@ -86,6 +93,16 @@ class MessagingService(ServiceBase):
     # -------------------------------------------------------------------------
     # Email (SMTP)
     # -------------------------------------------------------------------------
+    @staticmethod
+    def _validate_email(value: str, label: str) -> None:
+        if not isinstance(value, str) or not EMAIL_PATTERN.fullmatch(value):
+            raise ValueError(f"{label} must be a valid email address")
+
+    @staticmethod
+    def _validate_phone(value: str) -> None:
+        if not isinstance(value, str) or not E164_PATTERN.fullmatch(value):
+            raise ValueError("phone numbers must use E.164 format")
+
 
     async def messaging_send_email(
         self,
@@ -104,7 +121,9 @@ class MessagingService(ServiceBase):
                 "SMTP_USERNAME / SMTP_PASSWORD not set. " "Cannot send email."
             )
 
+        self._validate_email(to, "recipient")
         from_addr = from_addr or self._smtp_default_from or self._smtp_username
+        self._validate_email(from_addr, "sender")
 
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
@@ -115,7 +134,7 @@ class MessagingService(ServiceBase):
         msg.attach(text_part)
 
         def _send() -> str:
-            with smtplib.SMTP(self._smtp_host, self._smtp_port) as server:
+            with smtplib.SMTP(self._smtp_host, self._smtp_port, timeout=15) as server:
                 server.ehlo()
                 server.starttls()
                 server.ehlo()
@@ -149,6 +168,8 @@ class MessagingService(ServiceBase):
                 "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and "
                 "TWILIO_FROM_NUMBER must all be set to send SMS."
             )
+        self._validate_phone(to)
+        self._validate_phone(self._twilio_from)
 
         url = (
             f"https://api.twilio.com/2010-04-01/Accounts/"
@@ -161,7 +182,7 @@ class MessagingService(ServiceBase):
         }
         auth = aiohttp.BasicAuth(self._twilio_account_sid, self._twilio_auth_token)
 
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
             async with session.post(url, data=payload, auth=auth) as resp:
                 data = await resp.json()
                 if resp.status >= 400:
@@ -197,6 +218,10 @@ class MessagingService(ServiceBase):
             raise EnvironmentError(
                 "TELEGRAM_BOT_TOKEN not set. Cannot send Telegram messages."
             )
+        if not isinstance(chat_id, str) or not chat_id.strip():
+            raise ValueError("chat_id must be a non-empty string")
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("text must be a non-empty string")
 
         if chat_id.lower() == "me":
             # Bot cannot send to 'me' directly — get updates to find owner chat_id

@@ -72,8 +72,35 @@ class SchedulerService:
         self.db_path = db_path
         self._lock = threading.Lock()
         self._callbacks: Dict[str, Callable] = {}
+        self._running = False
 
         self._init_db()
+
+    def start(self) -> None:
+        """Mark the scheduler service as available."""
+        self._running = True
+
+    def stop(self) -> None:
+        """Stop scheduling new work without deleting persisted tasks."""
+        self._running = False
+
+    def health_check(self) -> Dict[str, Any]:
+        """Return scheduler lifecycle and persistence health."""
+        try:
+            with self._lock:
+                conn = sqlite3.connect(self.db_path)
+                conn.execute("SELECT 1")
+                conn.close()
+            database_ok = True
+        except sqlite3.Error:
+            database_ok = False
+
+        return {
+            "status": "ok" if self._running and database_ok else "stopped",
+            "service": "scheduler",
+            "database_ok": database_ok,
+            "task_count": self.get_stats()["total_tasks"] if database_ok else None,
+        }
 
     def _init_db(self) -> None:
         """Initialize the SQLite database schema."""

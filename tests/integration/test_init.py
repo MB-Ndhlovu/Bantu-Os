@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import os
+import signal
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 INIT_DIR = REPO_ROOT / "init"
 INIT_C_PATH = INIT_DIR / "init.c"
 SERVICES_C_PATH = INIT_DIR / "services.c"
@@ -29,14 +32,14 @@ class TestInitC:
                 "-Wno-unused-parameter",
                 str(INIT_C_PATH),
                 str(SERVICES_C_PATH),
-                str(INIT_C_PATH.parent / "services.c"),
+                str(INIT_C_PATH.parent / "registry_socket.c"),
             ],
             capture_output=True,
             text=True,
         )
         if result.returncode != 0:
             pytest.fail(
-                f"gcc compile failed:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+                f"gcc compile failed:\nSTDOUT:\n{output}\nSTDERR:\n{""}"
             )
         return binary
 
@@ -45,26 +48,34 @@ class TestInitC:
         assert init_binary.stat().st_size > 0, "Binary should be non-empty"
 
     def test_init_runs_and_prints_banner(self, init_binary: Path):
-        result = subprocess.run(
+        process = subprocess.Popen(
             [str(init_binary)],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
-            timeout=5,
+            start_new_session=True,
         )
-        combined = result.stdout + result.stderr
+        time.sleep(0.2)
+        os.killpg(process.pid, signal.SIGTERM)
+        output, _ = process.communicate(timeout=5)
+        combined = output
         assert (
             "Bantu-OS init starting" in combined
-        ), f"Expected init banner in output:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        ), f"Expected init banner in output:\nSTDOUT:\n{output}\nSTDERR:\n{""}"
 
     def test_init_registers_services(self, init_binary: Path):
-        result = subprocess.run(
+        process = subprocess.Popen(
             [str(init_binary)],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
-            timeout=5,
+            start_new_session=True,
         )
-        combined = result.stdout + result.stderr
+        time.sleep(0.2)
+        os.killpg(process.pid, signal.SIGTERM)
+        output, _ = process.communicate(timeout=5)
+        combined = output
         for svc in ("syslog", "network"):
             assert (
                 svc in combined
-            ), f"Service {svc!r} not registered in init output:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+            ), f"Service {svc!r} not registered in init output:\nSTDOUT:\n{output}\nSTDERR:\n{""}"

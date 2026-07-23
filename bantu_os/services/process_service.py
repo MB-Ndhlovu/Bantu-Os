@@ -37,6 +37,29 @@ class ProcessService:
         self.max_concurrent = max_concurrent
         self._managed_processes: Dict[int, subprocess.Popen] = {}
         self._operation_log: List[Dict[str, Any]] = []
+        self._running = False
+
+    def start(self) -> None:
+        """Mark the process service as available."""
+        self._running = True
+
+    def stop(self) -> None:
+        """Stop all child processes managed by this instance."""
+        for pid in list(self._managed_processes):
+            try:
+                self.stop_process(pid)
+            except (ProcessLookupError, TimeoutError, PermissionError):
+                self._managed_processes.pop(pid, None)
+        self._running = False
+
+    def health_check(self) -> Dict[str, Any]:
+        """Return process-service lifecycle and managed-process health."""
+        return {
+            "status": "ok" if self._running else "stopped",
+            "service": "process",
+            "managed_count": len(self.get_managed_processes()) if self._running else 0,
+            "process_count": len(psutil.pids()),
+        }
 
     def list_processes(
         self,
