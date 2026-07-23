@@ -10,8 +10,8 @@ INIT_BINARY = bantu-init
 
 all: $(INIT_BINARY)
 
-$(INIT_BINARY): init.c services.c services.h
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ init.c services.c
+$(INIT_BINARY): init.c services.c services.h registry_socket.c registry_socket.h
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ init.c services.c registry_socket.c
 	@echo \"Built: $@\"
 
 test:

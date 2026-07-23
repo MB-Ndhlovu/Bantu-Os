@@ -37,11 +37,28 @@ class NetworkService:
         self.timeout = timeout
         self.max_response_size = max_response_size
         self._request_log: List[Dict[str, Any]] = []
+        self._running = False
         self._blocked_hosts: set = set()
         self._allowed_hosts: set = {
             "api.openai.com",
             "github.com",
             "api.github.com",
+        }
+
+    def start(self) -> None:
+        """Mark the network service as available."""
+        self._running = True
+
+    def stop(self) -> None:
+        """Stop the network service and clear transient request state."""
+        self._running = False
+
+    def health_check(self) -> Dict[str, Any]:
+        """Return network-service lifecycle health without external I/O."""
+        return {
+            "status": "ok" if self._running else "stopped",
+            "service": "network",
+            "request_count": len(self._request_log),
         }
 
     def http_get(

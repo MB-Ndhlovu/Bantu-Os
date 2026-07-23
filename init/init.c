@@ -15,10 +15,14 @@
 #include <sys/reboot.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <errno.h>
 #include "services.h"
+#include "registry_socket.h"
 
 static volatile sig_atomic_t running = 1;
 static pid_t shell_pid = -1;
+static int registry_fd = -1;
+static const char *registry_path = "/run/bantu/init.sock";
 
 int mount_filesystems(void)
 {
@@ -166,10 +170,19 @@ void main_loop(void)
     sigaddset(&sigs, SIGCHLD);
 
     while (running) {
+        if (registry_fd >= 0)
+            registry_socket_poll(registry_fd, 100);
+
         int sig;
-        int ret = sigwait(&sigs, &sig);
-        if (ret != 0)
+        siginfo_t info;
+        struct timespec timeout = {0, 0};
+        int ret = sigtimedwait(&sigs, &info, &timeout);
+        if (ret < 0) {
+            if (errno == EAGAIN || errno == EINTR)
+                continue;
             continue;
+        }
+        sig = ret;
         if (sig == SIGCHLD) {
             reap_service_children();
             if (shell_pid > 0) {
@@ -237,6 +250,13 @@ int main(int argc, char *argv[])
     /* 7. Start all services */
     start_all_services();
 
+    mkdir("/run/bantu", 0755);
+    registry_fd = registry_socket_start(registry_path);
+    if (registry_fd < 0)
+        perror("[init] registry socket unavailable");
+    else
+        printf("[init] registry socket listening at %s\n", registry_path);
+
     /* 8. Run shell while retaining root as PID 1 */
     const char *shell_path = NULL;
     if (access("/home/workspace/bantu_os/shell/target/release/bantu", F_OK) == 0) {
@@ -267,6 +287,7 @@ int main(int argc, char *argv[])
     main_loop();
 
     /* 10. Shutdown */
+    registry_socket_close(registry_fd, registry_path);
     shutdown_system();
 
     return 0;
