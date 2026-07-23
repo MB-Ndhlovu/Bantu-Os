@@ -151,8 +151,7 @@ int shutdown_system(void)
     printf("[init] rebooting...\n");
     if (reboot(RB_POWER_OFF) != 0) {
         perror("[init] reboot failed");
-        for (;;)
-            pause();
+        return -1;
     }
 
     return 0;

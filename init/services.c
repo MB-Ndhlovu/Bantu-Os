@@ -22,6 +22,18 @@
 static service_t *service_list = NULL;
 static int svc_count = 0;
 
+static void free_service_args(service_t *svc)
+{
+    if (!svc)
+        return;
+
+    for (int i = 0; i < svc->argc; i++) {
+        free(svc->argv[i]);
+        svc->argv[i] = NULL;
+    }
+    svc->argc = 0;
+}
+
 /* Initialize the service registry */
 void service_registry_init(void)
 {
@@ -31,10 +43,21 @@ void service_registry_init(void)
 /* Allocate and register a service */
 int service_register(service_t *svc)
 {
-    if (!svc || !svc->name[0] || !svc->exec_path[0])
+    if (!svc || !svc->name[0] || !svc->exec_path[0] ||
+        svc->argc < 0 || svc->argc >= MAX_ARGS)
         return -1;
 
-    service_t *new_svc = malloc(sizeof(service_t));
+    if (service_find(svc->name) != NULL)
+        return -1;
+
+    for (int i = 0; i < svc->argc; i++) {
+        if (!svc->argv[i])
+            return -1;
+    }
+    if (svc->argc > 0 && svc->argv[svc->argc] != NULL)
+        return -1;
+
+    service_t *new_svc = calloc(1, sizeof(service_t));
     if (!new_svc)
         return -1;
 
@@ -43,6 +66,14 @@ int service_register(service_t *svc)
     new_svc->pid = -1;
     new_svc->state = SERVICE_STOPPED;
     new_svc->restart_count = 0;
+    for (int i = 0; i < svc->argc; i++) {
+        new_svc->argv[i] = strdup(svc->argv[i]);
+        if (!new_svc->argv[i]) {
+            free_service_args(new_svc);
+            free(new_svc);
+            return -1;
+        }
+    }
 
     /* Append to linked list */
     if (service_list == NULL) {
@@ -63,6 +94,9 @@ int service_register(service_t *svc)
 /* Find service by name */
 service_t *service_find(const char *name)
 {
+    if (!name)
+        return NULL;
+
     service_t *cur = service_list;
     while (cur) {
         if (strcmp(cur->name, name) == 0)
@@ -75,17 +109,21 @@ service_t *service_find(const char *name)
 /* Remove service by name */
 int service_unregister(const char *name)
 {
+    if (!name)
+        return -1;
+
     service_t *cur = service_list;
     service_t *prev = NULL;
 
     while (cur) {
         if (strcmp(cur->name, name) == 0) {
+            if (cur->state == SERVICE_RUNNING && stop_service(cur) != 0)
+                return -1;
             if (prev)
                 prev->next = cur->next;
             else
                 service_list = cur->next;
-            for (int i = 0; i < cur->argc; i++)
-                free(cur->argv[i]);
+            free_service_args(cur);
             free(cur);
             svc_count--;
             return 0;
@@ -102,8 +140,9 @@ void service_free_registry(void)
     service_t *cur = service_list;
     while (cur) {
         service_t *next = cur->next;
-        for (int i = 0; i < cur->argc; i++)
-            free(cur->argv[i]);
+        if (cur->state == SERVICE_RUNNING)
+            stop_service(cur);
+        free_service_args(cur);
         free(cur);
         cur = next;
     }
@@ -157,11 +196,13 @@ int start_service(service_t *svc)
 /* Stop a single service */
 int stop_service(service_t *svc)
 {
-    if (!svc || svc->state != SERVICE_RUNNING)
+    if (!svc || svc->state != SERVICE_RUNNING || svc->pid <= 0)
         return -1;
 
-    if (svc->on_stop)
-        svc->on_stop();
+    if (svc->on_stop && svc->on_stop() != 0) {
+        svc->state = SERVICE_FAILED;
+        return -1;
+    }
 
     svc->state = SERVICE_STOPPING;
     pid_t pid = svc->pid;
@@ -175,9 +216,14 @@ int stop_service(service_t *svc)
     while (waitpid(pid, &status, 0) < 0) {
         if (errno == EINTR)
             continue;
-        if (errno != ECHILD)
-            perror("[init] waitpid failed");
-        break;
+        if (errno == ECHILD) {
+            svc->state = SERVICE_STOPPED;
+            svc->pid = -1;
+            return 0;
+        }
+        perror("[init] waitpid failed");
+        svc->state = SERVICE_FAILED;
+        return -1;
     }
 
     svc->state = SERVICE_STOPPED;
@@ -192,11 +238,11 @@ int restart_service(service_t *svc)
     if (!svc)
         return -1;
 
-    if (svc->on_restart)
-        svc->on_restart();
+    if (svc->on_restart && svc->on_restart() != 0)
+        return -1;
 
-    if (svc->state == SERVICE_RUNNING)
-        stop_service(svc);
+    if (svc->state == SERVICE_RUNNING && stop_service(svc) != 0)
+        return -1;
 
     return start_service(svc);
 }
@@ -309,8 +355,10 @@ int load_services_from_config(const char *path)
             continue;
 
         service_t svc = {0};
-        if (parse_config_line(line, &svc) == 0)
+            if (parse_config_line(line, &svc) == 0) {
             service_register(&svc);
+            free_service_args(&svc);
+        }
     }
 
     fclose(fp);
@@ -347,12 +395,20 @@ int parse_config_line(const char *line, service_t *svc)
     svc->max_restarts = 3;
 
     /* Parse extra args */
-    for (int i = 3; i < n && svc->argc < MAX_ARGS - 1; i++) {
+    if (svc->argc >= MAX_ARGS - 1)
+        return -1;
+    svc->argv[svc->argc] = strdup(svc->exec_path);
+    if (!svc->argv[svc->argc])
+        return -1;
+    svc->argc++;
+    for (int i = 3; i < n; i++) {
+        if (svc->argc >= MAX_ARGS - 1) {
+            free_service_args(svc);
+            return -1;
+        }
         svc->argv[svc->argc] = strdup(fields[i]);
         if (!svc->argv[svc->argc]) {
-            for (int j = 0; j < svc->argc; j++)
-                free(svc->argv[j]);
-            svc->argc = 0;
+            free_service_args(svc);
             return -1;
         }
         svc->argc++;
@@ -380,7 +436,9 @@ const char *service_state_str(service_state_t state)
     static const char *names[] = {
         "STOPPED", "STARTING", "RUNNING", "STOPPING", "FAILED"
     };
-    return names[state % 5];
+    if (state < SERVICE_STOPPED || state > SERVICE_FAILED)
+        return "UNKNOWN";
+    return names[state];
 }
 
 const char *service_priority_str(service_priority_t prio)
