@@ -1,25 +1,48 @@
 # Agent 4 — Memory/RAG Engineer
 
 **Run date:** 2026-07-23 (Africa/Johannesburg)
-**Status:** BLOCKED — prerequisite gate not satisfied
-**BLOCKER: YES**
+**Status:** COMPLETE
+**BLOCKER: NO**
 
-## Gate result
+## Gate
 
-- `reports/01-systems-init-lead.md`: present for 2026-07-23; `BLOCKER: NO`.
-- `reports/02-rust-shell-engineer.md`: present for 2026-07-23; `BLOCKER: NO`.
-- `reports/03-ai-engine-lead.md`: present for 2026-07-23; `BLOCKER: YES`.
+- Reports 01–03 were present for 2026-07-23 and explicitly marked `BLOCKER: NO`.
+- Agent 3’s repository gate was green: 371 passed, 8 skipped, 14 warnings.
 
-The gate requires all three reports to contain today's local run date and `BLOCKER: NO`. Agent 3 is blocked by the mandatory `make test` failure caused by the external `https://httpbin.org/get` request returning HTTP 503/timeout.
+## Scope reviewed
 
-## Work performed
+Audited the memory coordinator, embedding provider interface, ChromaDB-backed vector store, in-memory fallback, legacy Chroma adapter, and knowledge graph. No changes were made to the AI engine, services, Rust shell, or C init.
 
-No memory/RAG code, schema verification, persistence or retrieval testing, knowledge-graph integrity checks, or memory-layer changes were attempted. Per the run instructions, execution stopped at the prerequisite gate.
+## Findings and change
 
-## Files touched
+- `Memory` consistently composes an `EmbeddingsProvider` with a `VectorStore`; `store_text` and `retrieve_memory` correctly fail fast when no provider is configured.
+- `ChromaVectorStore` creates its persistent directory, uses a named persistent collection, stores documents and metadata, supports add/search/get/delete/clear/count, and falls back to `VectorDB` when ChromaDB is unavailable.
+- Removed the duplicate legacy `ChromaVectorStore` definition from `bantu_os/memory/vector_store.py`. The public class is now a single consolidated persistent adapter, avoiding import-time shadowing and ambiguous behaviour.
+- Knowledge graph integrity is enforced for edges: both endpoint nodes must exist; BFS traversal tracks visited nodes and honours relation and depth constraints.
+- `OpenAIEmbeddingsProvider` remains an explicit external-provider integration requiring `OPENAI_API_KEY`; it is not silently replaced with a fake embedding implementation.
 
-- `reports/04-memory-rag-engineer.md`
+## Verification
 
-## Instructions for Agent 5
+```text
+pytest tests/memory tests/unit/test_knowledge_graph.py tests/unit/test_chroma_store.py -q --tb=short
+27 passed in 2.74s
 
-Do not treat the memory/RAG layer as verified for this run. Rerun Agent 4 only after reports 01–03 are current and all explicitly state `BLOCKER: NO`. Once unblocked, verify the AI-engine/memory schema contract, persistence and retrieval behaviour, knowledge-graph integrity, scoped git diff, and hand off exact test results.
+python -m compileall -q bantu_os/memory
+PASS
+
+git diff --check
+PASS
+```
+
+The full repository gate was already reported green by Agent 3 before this scoped memory change. Generated ChromaDB files were restored and are not part of the commit.
+
+## Commit
+
+- `d8aa86c refactor(memory): consolidate Chroma vector adapter`
+- Pushed to `feat/shell-history-completion` after merging the concurrent Agent 3 report update.
+
+## Follow-ups
+
+- Add an explicit embedding-provider contract test for provider output shape and dimension mismatch.
+- Decide whether the unused `ChromaStore` compatibility module should be deprecated or migrated to the consolidated `VectorStore` interface in a separate change.
+- Add persistence tests for the knowledge graph if durable graph storage becomes a requirement; the current graph is in-memory.
