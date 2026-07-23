@@ -120,7 +120,7 @@ fn dispatch(tokens: &[String]) -> Result<(&str, Vec<&str>), String> {
     // "where am i" / "where current" → pwd (handled in match above)
     // "where is X" → grep (search for X)
     if tool == "grep" && joined.starts_with("where is ") {
-        return Ok(("grep", tokens[1..].iter().map(|s| s.as_str()).collect()));
+        return Ok(("grep", tokens[2..].iter().map(|s| s.as_str()).collect()));
     }
 
     if tool == "ls" && matches!(all_lower_first.as_str(), "list" | "ls") {
@@ -219,6 +219,6 @@ mod tests {
         assert!(result.is_ok());
         let call = result.unwrap();
         assert_eq!(call.tool, "grep");
-        assert_eq!(call.args, vec!["is", "this"]);
+        assert_eq!(call.args, vec!["this"]);
     }
 }

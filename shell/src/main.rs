@@ -8,7 +8,7 @@ use rustyline::hint::Hinter;
 use rustyline::history::DefaultHistory;
 use rustyline::validate::Validator;
 use rustyline::{Context, Editor, Helper};
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -431,7 +431,9 @@ fn handle_raw_json(json_input: &str) -> String {
     }
 
     let mut response = String::new();
-    match sock.read_to_string(&mut response) {
+    use std::io::BufRead;
+    let mut reader = std::io::BufReader::new(sock);
+    match reader.read_line(&mut response) {
         Ok(_) => {}
         Err(e) => {
             return format!("Read error: {e}");
@@ -491,7 +493,9 @@ fn send_kernel_cmd(json_cmd: &str) -> Option<String> {
     }
 
     let mut response = String::new();
-    match sock.read_to_string(&mut response) {
+    use std::io::BufRead;
+    let mut reader = std::io::BufReader::new(sock);
+    match reader.read_line(&mut response) {
         Ok(_) => {}
         Err(e) => {
             println!("AI unavailable: read failed ({})", e);
