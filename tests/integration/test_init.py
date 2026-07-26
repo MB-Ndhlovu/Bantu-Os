@@ -39,7 +39,7 @@ class TestInitC:
         )
         if result.returncode != 0:
             pytest.fail(
-                f"gcc compile failed:\nSTDOUT:\n{output}\nSTDERR:\n{""}"
+                f"gcc compile failed:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
             )
         return binary
 
@@ -47,9 +47,10 @@ class TestInitC:
         assert init_binary.exists(), "Compiled init binary should exist"
         assert init_binary.stat().st_size > 0, "Binary should be non-empty"
 
-    def test_init_runs_and_prints_banner(self, init_binary: Path):
+    def test_init_runs_and_prints_banner(self, init_binary: Path, tmp_path):
         process = subprocess.Popen(
             [str(init_binary)],
+            env={**os.environ, "BANTU_INIT_REGISTRY_SOCKET": str(tmp_path / "registry" / "init.sock")},
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -61,11 +62,12 @@ class TestInitC:
         combined = output
         assert (
             "Bantu-OS init starting" in combined
-        ), f"Expected init banner in output:\nSTDOUT:\n{output}\nSTDERR:\n{""}"
+        ), f"Expected init banner in output:\nSTDOUT:\n{output}"
 
-    def test_init_registers_services(self, init_binary: Path):
+    def test_init_registers_services(self, init_binary: Path, tmp_path):
         process = subprocess.Popen(
             [str(init_binary)],
+            env={**os.environ, "BANTU_INIT_REGISTRY_SOCKET": str(tmp_path / "registry" / "init.sock")},
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -78,4 +80,4 @@ class TestInitC:
         for svc in ("syslog", "network"):
             assert (
                 svc in combined
-            ), f"Service {svc!r} not registered in init output:\nSTDOUT:\n{output}\nSTDERR:\n{""}"
+            ), f"Service {svc!r} not registered in init output:\nSTDOUT:\n{output}"

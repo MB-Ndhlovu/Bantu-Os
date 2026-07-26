@@ -21,7 +21,7 @@ from typing import Optional
 
 # Wire Phase 2 services into the kernel
 
-SOCKET_PATH = "/run/bantu/init.sock"
+SOCKET_PATH = os.environ.get("BANTU_INIT_REGISTRY_SOCKET", "/run/bantu/init.sock")
 
 
 class InitBridge:
@@ -56,13 +56,17 @@ class InitBridge:
         self.sock.connect(self.socket_path)
 
     def _send(self, payload: dict) -> dict:
-        """Send a JSON message and receive the response."""
+        """Send one request over the line-oriented registry protocol."""
         if self.sock is None:
-            raise RuntimeError("Not connected to init socket")
+            self._connect()
         data = json.dumps(payload).encode("utf-8") + b"\n"
-        self.sock.sendall(data)
-        response = self.sock.recv(4096).decode("utf-8", errors="replace")
-        return json.loads(response.strip())
+        try:
+            self.sock.sendall(data)
+            response = self.sock.recv(4096).decode("utf-8", errors="replace")
+            return json.loads(response.strip())
+        finally:
+            self.sock.close()
+            self.sock = None
 
     # -------------------------------------------------------------------------
     # Registration
@@ -97,15 +101,13 @@ class InitBridge:
 
     def unregister(self) -> None:
         """Unregister this service from the C init registry."""
-        if not self._registered or self.sock is None:
+        if not self._registered:
             return
         try:
             self._send({"cmd": "unregister", "name": self.service_name})
         except Exception:
             pass
         finally:
-            self.sock.close()
-            self.sock = None
             self._registered = False
 
     # -------------------------------------------------------------------------
@@ -118,8 +120,6 @@ class InitBridge:
 
         Returns True if the init acknowledges, False otherwise.
         """
-        if self.sock is None:
-            return False
         try:
             resp = self._send({"cmd": "heartbeat", "name": self.service_name})
             return resp.get("ok", False)
@@ -132,8 +132,6 @@ class InitBridge:
 
     def get_service_status(self, name: str) -> Optional[dict]:
         """Query the C init for another service's status."""
-        if self.sock is None:
-            return None
         try:
             resp = self._send({"cmd": "status", "name": name})
             return resp if resp.get("ok") else None
