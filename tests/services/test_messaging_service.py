@@ -25,6 +25,7 @@ class TestMessagingService:
         from bantu_os.services.messaging.schemas import TOOL_SCHEMAS
 
         assert "messaging_send_email" in TOOL_SCHEMAS
+        assert "telegram_provider_health" in TOOL_SCHEMAS
 
     async def test_unknown_tool_raises(self):
         from bantu_os.services.messaging import MessagingService
