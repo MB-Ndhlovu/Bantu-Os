@@ -59,7 +59,6 @@ class VectorDBStore(VectorStore):
         return self.db.delete(record_id)
 
 
-
 # ── ChromaDB adapter ──────────────────────────────────────────────────────────
 
 try:

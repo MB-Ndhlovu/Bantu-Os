@@ -12,7 +12,9 @@ class TestNetworkService:
         svc = NetworkService(timeout=10)
         result = svc.http_get("https://httpbin.org/get")
         if result.status != 200:
-            pytest.skip(f"httpbin.org unavailable: status={result.status}, error={result.body}")
+            pytest.skip(
+                f"httpbin.org unavailable: status={result.status}, error={result.body}"
+            )
         assert "headers" in result.body
 
     def test_http_get_invalid_url(self):

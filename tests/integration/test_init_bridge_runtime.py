@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import socket
@@ -33,11 +32,15 @@ def test_python_bridge_registers_heartbeats_and_unregisters(tmp_path: Path) -> N
     binary = tmp_path / "bantu-init"
     subprocess.run(
         [
-            "gcc", "-Wall", "-Wextra", "-std=c11",
+            "gcc",
+            "-Wall",
+            "-Wextra",
+            "-std=c11",
             str(source_root / "init/init.c"),
             str(source_root / "init/services.c"),
             str(source_root / "init/registry_socket.c"),
-            "-o", str(binary),
+            "-o",
+            str(binary),
         ],
         check=True,
     )
