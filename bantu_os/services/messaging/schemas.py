@@ -52,6 +52,14 @@ TOOL_SCHEMAS = {
             "required": ["to", "body"],
         },
     },
+    "telegram_provider_health": {
+        "description": "Check reachability and identity of the configured Telegram bot.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
     "messaging_send_telegram": {
         "description": "Send a message via a Telegram bot.",
         "parameters": {

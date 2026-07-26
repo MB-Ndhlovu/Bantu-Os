@@ -73,6 +73,27 @@ class MessagingService(ServiceBase):
             "telegram_configured": bool(self._telegram_token),
         }
 
+    async def telegram_provider_health(self) -> dict[str, Any]:
+        """Verify the configured Telegram bot token without sending a message."""
+        if not self._telegram_token:
+            raise EnvironmentError("TELEGRAM_BOT_TOKEN not set.")
+        url = f"https://api.telegram.org/bot{self._telegram_token}/getMe"
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
+            async with session.get(url) as resp:
+                data = await resp.json()
+                if resp.status >= 400 or not data.get("ok"):
+                    raise RuntimeError(
+                        f"Telegram API error: {data.get('description', data)}"
+                    )
+                bot = data.get("result", {})
+                return {
+                    "provider": "telegram",
+                    "configured": True,
+                    "reachable": True,
+                    "bot_id": bot.get("id"),
+                    "bot_username": bot.get("username", ""),
+                }
+
     # -------------------------------------------------------------------------
     # Tool dispatcher
     # -------------------------------------------------------------------------
@@ -85,6 +106,7 @@ class MessagingService(ServiceBase):
             "messaging_send_email": self.messaging_send_email,
             "messaging_send_sms": self.messaging_send_sms,
             "messaging_send_telegram": self.messaging_send_telegram,
+            "telegram_provider_health": self.telegram_provider_health,
         }
         if tool_name not in dispatch:
             raise ValueError(f"[MessagingService] Unknown tool: {tool_name!r}")
