@@ -16,6 +16,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <sys/un.h>
 #include "services.h"
 #include "registry_socket.h"
 
@@ -24,8 +25,22 @@ static pid_t shell_pid = -1;
 static int registry_fd = -1;
 static const char *registry_path = "/run/bantu/init.sock";
 
+static const char *get_registry_path(void)
+{
+    const char *override = getenv("BANTU_INIT_REGISTRY_SOCKET");
+    return override && override[0] ? override : registry_path;
+}
+static const char *get_shell_path(void)
+{
+    const char *override = getenv("BANTU_INIT_SHELL_PATH");
+    return override && override[0] ? override : NULL;
+}
+
 int mount_filesystems(void)
 {
+    if (getenv("BANTU_INIT_SKIP_MOUNTS"))
+        return 0;
+
     printf("[init] mounting filesystems...\n");
 
     /* Mount /proc (process info) */
@@ -250,18 +265,25 @@ int main(int argc, char *argv[])
     /* 7. Start all services */
     start_all_services();
 
-    mkdir("/run/bantu", 0755);
-    registry_fd = registry_socket_start(registry_path);
+    const char *active_registry_path = get_registry_path();
+    char registry_dir[sizeof(((struct sockaddr_un *)0)->sun_path)] = {0};
+    strncpy(registry_dir, active_registry_path, sizeof(registry_dir) - 1);
+    char *last_slash = strrchr(registry_dir, '/');
+    if (last_slash && last_slash != registry_dir) {
+        *last_slash = '\0';
+        mkdir(registry_dir, 0755);
+    }
+    registry_fd = registry_socket_start(active_registry_path);
     if (registry_fd < 0)
         perror("[init] registry socket unavailable");
     else
-        printf("[init] registry socket listening at %s\n", registry_path);
+        printf("[init] registry socket listening at %s\n", active_registry_path);
 
     /* 8. Run shell while retaining root as PID 1 */
-    const char *shell_path = NULL;
-    if (access("/home/workspace/bantu_os/shell/target/release/bantu", F_OK) == 0) {
+    const char *shell_path = get_shell_path();
+    if (shell_path == NULL && access("/home/workspace/bantu_os/shell/target/release/bantu", F_OK) == 0) {
         shell_path = "/home/workspace/bantu_os/shell/target/release/bantu";
-    } else if (access("/home/workspace/bantu_os/shell/target/debug/bantu", F_OK) == 0) {
+    } else if (shell_path == NULL && access("/home/workspace/bantu_os/shell/target/debug/bantu", F_OK) == 0) {
         shell_path = "/home/workspace/bantu_os/shell/target/debug/bantu";
     }
 
@@ -287,7 +309,7 @@ int main(int argc, char *argv[])
     main_loop();
 
     /* 10. Shutdown */
-    registry_socket_close(registry_fd, registry_path);
+    registry_socket_close(registry_fd, get_registry_path());
     shutdown_system();
 
     return 0;

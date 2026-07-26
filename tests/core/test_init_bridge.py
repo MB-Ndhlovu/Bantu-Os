@@ -37,7 +37,6 @@ class TestInitBridge:
         register() returns False when C init socket is not present.
         This is the expected behaviour outside the init environment.
         """
-        bridge = InitBridge()
-        # Socket path does not exist outside init environment — should return False
+        bridge = InitBridge(socket_path="/tmp/bantu-test-missing-init.sock")
         result = bridge.register()
         assert result is False
