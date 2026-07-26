@@ -16,7 +16,7 @@ mod parser;
 mod tools;
 
 const HISTORY_FILE: &str = "bantu_os_data/shell_history.txt";
-const SOCKET_PATH: &str = "/tmp/bantu.sock";
+const DEFAULT_SOCKET_PATH: &str = "/tmp/bantu.sock";
 
 static AI_MODE: AtomicBool = AtomicBool::new(false);
 
@@ -56,6 +56,12 @@ impl Hinter for CommandCompleter {
 impl Highlighter for CommandCompleter {}
 impl Validator for CommandCompleter {}
 impl Helper for CommandCompleter {}
+
+fn socket_path() -> std::path::PathBuf {
+    std::env::var_os("BANTU_SOCK_PATH")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from(DEFAULT_SOCKET_PATH))
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Bantu-OS Shell v0.1.0 — AI-powered REPL");
@@ -306,7 +312,7 @@ fn handle_ai_input(input: &str) {
         return;
     }
 
-    let mut sock = match std::os::unix::net::UnixStream::connect(SOCKET_PATH) {
+    let mut sock = match std::os::unix::net::UnixStream::connect(socket_path()) {
         Ok(s) => s,
         Err(e) => {
             println!("AI unavailable: socket connection failed ({})", e);
@@ -415,7 +421,7 @@ fn handle_ai_input(input: &str) {
     }
 }
 fn handle_raw_json(json_input: &str) -> String {
-    let mut sock = match std::os::unix::net::UnixStream::connect(SOCKET_PATH) {
+    let mut sock = match std::os::unix::net::UnixStream::connect(socket_path()) {
         Ok(s) => s,
         Err(e) => {
             return format!("Socket error: {e}");
@@ -477,7 +483,7 @@ fn get_shell_help() -> String {
 }
 
 fn send_kernel_cmd(json_cmd: &str) -> Option<String> {
-    let mut sock = match std::os::unix::net::UnixStream::connect(SOCKET_PATH) {
+    let mut sock = match std::os::unix::net::UnixStream::connect(socket_path()) {
         Ok(s) => s,
         Err(e) => {
             println!("AI unavailable: socket connection failed ({})", e);
@@ -522,8 +528,8 @@ fn send_kernel_cmd(json_cmd: &str) -> Option<String> {
 }
 
 fn check_kernel_status() {
-    if std::path::Path::new(SOCKET_PATH).exists() {
-        println!("[boot] Unix socket found at {}\n", SOCKET_PATH);
+    if socket_path().exists() {
+        println!("[boot] Unix socket found at {}\n", socket_path().display());
     } else {
         println!("[boot] Unix socket NOT found — AI features disabled until kernel starts");
         println!("[boot] Run ./start.sh to start the Python kernel\n");
@@ -531,12 +537,12 @@ fn check_kernel_status() {
 }
 
 fn get_status() -> String {
-    let socket_exists = std::path::Path::new(SOCKET_PATH).exists();
+    let socket_exists = socket_path().exists();
     let ai_mode = AI_MODE.load(Ordering::SeqCst);
     let mut s = String::from("=== Bantu-OS Status ===\n");
     s.push_str(&format!(
         "Socket:  {} ({})\n",
-        SOCKET_PATH,
+        socket_path().display(),
         if socket_exists {
             "available"
         } else {
