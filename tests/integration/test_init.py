@@ -50,7 +50,10 @@ class TestInitC:
     def test_init_runs_and_prints_banner(self, init_binary: Path, tmp_path):
         process = subprocess.Popen(
             [str(init_binary)],
-            env={**os.environ, "BANTU_INIT_REGISTRY_SOCKET": str(tmp_path / "registry" / "init.sock")},
+            env={
+                **os.environ,
+                "BANTU_INIT_REGISTRY_SOCKET": str(tmp_path / "registry" / "init.sock"),
+            },
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -67,7 +70,10 @@ class TestInitC:
     def test_init_registers_services(self, init_binary: Path, tmp_path):
         process = subprocess.Popen(
             [str(init_binary)],
-            env={**os.environ, "BANTU_INIT_REGISTRY_SOCKET": str(tmp_path / "registry" / "init.sock")},
+            env={
+                **os.environ,
+                "BANTU_INIT_REGISTRY_SOCKET": str(tmp_path / "registry" / "init.sock"),
+            },
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,

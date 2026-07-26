@@ -220,17 +220,29 @@ class Kernel:
         outcomes = []
         for call in calls:
             if not isinstance(call, dict):
-                outcomes.append({"name": "", "error": "Invalid tool call: expected an object"})
+                outcomes.append(
+                    {"name": "", "error": "Invalid tool call: expected an object"}
+                )
                 continue
 
             name = call.get("name", "")
             if not isinstance(name, str) or not name:
-                outcomes.append({"name": str(name), "error": "Invalid tool call: name must be a non-empty string"})
+                outcomes.append(
+                    {
+                        "name": str(name),
+                        "error": "Invalid tool call: name must be a non-empty string",
+                    }
+                )
                 continue
 
             args = call.get("args", {})
             if not isinstance(args, dict):
-                outcomes.append({"name": name, "error": f"Invalid args for {name}: expected an object"})
+                outcomes.append(
+                    {
+                        "name": name,
+                        "error": f"Invalid args for {name}: expected an object",
+                    }
+                )
                 continue
 
             if name not in self.tools:

@@ -33,6 +33,7 @@ from typing import Any
 import aiohttp
 
 from bantu_os.services.service_base import ServiceBase
+
 HTTP_TIMEOUT = aiohttp.ClientTimeout(total=15)
 E164_PATTERN = re.compile(r"^\\+[1-9]\\d{7,14}$")
 EMAIL_PATTERN = re.compile(r"^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
@@ -124,7 +125,6 @@ class MessagingService(ServiceBase):
     def _validate_phone(value: str) -> None:
         if not isinstance(value, str) or not E164_PATTERN.fullmatch(value):
             raise ValueError("phone numbers must use E.164 format")
-
 
     async def messaging_send_email(
         self,
