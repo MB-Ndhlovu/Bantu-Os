@@ -18,7 +18,7 @@ Working stack: Linux kernel → C init (PID 1) → Rust shell REPL → Python AI
 
 | Gate | Result | Evidence |
 |---|---|---|
-| Python tests | ✅ Pass | `380 passed, 4 skipped, 14 warnings` via `python3 -m pytest tests/ -q --tb=short` |
+| Python tests | ✅ Pass | `384 passed, 4 skipped, 16 warnings` via `python3 -m pytest tests/ -q --tb=short` |
 | Rust tests | ✅ Pass | 13 library + 13 binary + 4 integration tests passed via `cd shell && cargo test --lib --tests` |
 | C compilation | ✅ Pass | `cd init && make clean && make` with `-Wall -Wextra -Werror` |
 | Ruff | ✅ Pass | `python3 -m ruff check bantu_os/ tests/` |
@@ -26,7 +26,7 @@ Working stack: Linux kernel → C init (PID 1) → Rust shell REPL → Python AI
 | Full-stack demo | ✅ Pass | `bash scripts/demo.sh`, all scripted checks completed successfully |
 | Docker image | ⚠️ Pending runner | Local runner has neither Docker nor Podman; must be built on a Docker-capable runner |
 
-The test suite emits 14 existing warnings for synchronous tests marked with `pytest.mark.asyncio` and a constrained `/proc/vmstat` environment. They do not fail the gate.
+The test suite emits 16 non-failing warnings: existing async-marker warnings, aiohttp application-key warnings in the new API test, socket-test coroutine warnings, and a constrained `/proc/vmstat` environment. They do not fail the gate.
 
 ---
 
@@ -65,7 +65,7 @@ The following execute end-to-end against the live kernel/shell pair on a fresh d
 ## What's Next
 
 1. Build and run the Docker image on a Docker-capable runner, then exercise the container health check and boot path.
-2. Add automated regression tests for socket mode `0600` and admin-only API-key creation.
+2. Keep the new regression tests for socket mode `0600`, private API-key persistence, admin-only API-key creation, and PBKDF2 password hashing in the mandatory CI gate.
 3. Implement IPC authentication and replay protection before exposing the TCP listener beyond localhost.
 4. Resolve the existing pytest async-marker warnings.
 5. Continue Phase 4 integration-provider tests with credentials isolated from source control.
