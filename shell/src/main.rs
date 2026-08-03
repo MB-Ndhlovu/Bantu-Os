@@ -360,6 +360,7 @@ fn handle_ai_input(input: &str) {
                     "{}",
                     resp["question"].as_str().unwrap_or("Could you clarify?")
                 );
+                break;
             }
             "goal_update" => {
                 if let Some(msg) = resp["message"].as_str() {
@@ -403,7 +404,7 @@ fn handle_ai_input(input: &str) {
                 println!("\n{}", resp["summary"].as_str().unwrap_or(""));
                 break;
             }
-            "goal_failed" => {
+            "goal_failed" | "plan_failed" => {
                 println!(
                     "Goal failed: {}",
                     resp["error"].as_str().unwrap_or("unknown")
@@ -448,15 +449,20 @@ fn handle_raw_json(json_input: &str) -> String {
 
     if let Ok(resp) = serde_json::from_str::<serde_json::Value>(&response) {
         if resp["ok"].as_bool() == Some(true) {
-            return resp["result"]
-                .as_str()
-                .unwrap_or("(no response)")
-                .to_string();
+            return format_json_value(&resp["result"]);
         } else {
             return format!("Error: {}", resp["error"].as_str().unwrap_or("unknown"));
         }
     }
     "Invalid response from kernel".to_string()
+}
+
+fn format_json_value(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(text) => text.clone(),
+        serde_json::Value::Null => "(no response)".to_string(),
+        _ => serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string()),
+    }
 }
 
 fn get_shell_help() -> String {
@@ -511,12 +517,7 @@ fn send_kernel_cmd(json_cmd: &str) -> Option<String> {
 
     if let Ok(resp) = serde_json::from_str::<serde_json::Value>(&response) {
         if resp["ok"].as_bool() == Some(true) {
-            return Some(
-                resp["result"]
-                    .as_str()
-                    .unwrap_or("(no response)")
-                    .to_string(),
-            );
+            return Some(format_json_value(&resp["result"]));
         } else {
             return Some(format!(
                 "Error: {}",

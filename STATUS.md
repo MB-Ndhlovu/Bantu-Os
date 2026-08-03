@@ -2,21 +2,50 @@
 
 **This is the single source of truth for project status.** README, AGENTS.md, and the docs subdirectory all point here when they need a current snapshot. Edit this file last when a task changes project state.
 
-**Last Updated:** 2026-07-13
+**Last Updated:** 2026-08-03
 
 ---
 
 ## Current Phase
 
-**Phase 3 (Service Manager) + Phase 4 (Network & Integration Services)** in progress.
+**Phase 4 (CI, integrations, security reconciliation) in progress.**
 
-Working stack: Linux kernel → C init (PID 1) → Rust shell REPL → Python AI kernel + services. The end-to-end demo `bash scripts/demo.sh` boots the full stack and exercises every wired service.
+Working stack: Linux kernel → C init (PID 1) → Rust shell REPL → Python AI kernel + services. The canonical end-to-end demo boots the full stack and exercises the wired service bridge.
 
 ---
 
-## What's Working (verified by `bash scripts/demo.sh`)
+## Verification — 2026-08-03
 
-The following execute end-to-end against the live kernel/shell pair on a fresh boot:
+| Gate | Result | Evidence |
+|---|---|---|
+| Python tests | ✅ Pass | `384 passed, 4 skipped, 16 warnings` via `python3 -m pytest tests/ -q --tb=short` |
+| Rust tests | ✅ Pass | 13 library + 13 binary + 4 integration tests passed via `cd shell && cargo test --lib --tests` |
+| C compilation | ✅ Pass | `cd init && make clean && make` with `-Wall -Wextra -Werror` |
+| Ruff | ✅ Pass | `python3 -m ruff check bantu_os/ tests/` |
+| Black | ✅ Pass | `python3 -m black --check bantu_os/ tests/` |
+| Full-stack demo | ✅ Pass | `bash scripts/demo.sh`, all scripted checks completed successfully |
+| Docker image | ⚠️ Pending runner | Local runner has neither Docker nor Podman; must be built on a Docker-capable runner |
+
+The test suite emits 16 non-failing warnings: existing async-marker warnings, aiohttp application-key warnings in the new API test, socket-test coroutine warnings, and a constrained `/proc/vmstat` environment. They do not fail the gate.
+
+---
+
+## Security Review — 2026-08-03
+
+**Re-run result:** security reconciliation completed for this branch.
+
+- Unix socket permissions hardened from world-readable/writable `0666` to owner-only `0600`.
+- API-key JSON persistence now uses an atomic temporary-file replacement and owner-only `0600` permissions.
+- API-key creation now requires `Authorization: Bearer $BANTU_ADMIN_API_KEY`; verification remains the only unauthenticated API auth endpoint.
+- Password hashing uses PBKDF2-HMAC-SHA256 with 600,000 iterations and constant-time digest comparison.
+- No generated ChromaDB files or compiled binaries are included in the reconciled source change set.
+- Known production gaps remain: HMAC/replay protection for IPC, full-disk encryption, TPM attestation, and a Docker-capable image build verification.
+
+---
+
+## What's Working
+
+The following execute end-to-end against the live kernel/shell pair on a fresh demo boot:
 
 | # | Capability | Source |
 |---|------------|--------|
@@ -27,76 +56,38 @@ The following execute end-to-end against the live kernel/shell pair on a fresh b
 | 5 | Hardware service: CPU, memory, disk telemetry | `services/hardware/` |
 | 6 | IoT service: device list, scan, telemetry | `services/iot/` |
 | 7 | Messaging service: send, receive, channels | `services/messaging/` |
-| 8 | AI service: provider status, route listing | `ai/service.py` |
-| 9 | Auth service: session create/get/list/destroy | `auth/service.py` |
-| 10 | Rust shell REPL: parse → dispatch → tool | `shell/src/` |
-| 11 | Rust integration tests: full stack boot | `shell/src/tests/integration_tests.rs` |
-
-**Demo command:** `bash scripts/demo.sh` (~30s, no setup). 11/11 endpoints green.
+| 8 | Rust shell REPL: parse → dispatch → tool | `shell/src/` |
+| 9 | Intent kernel streaming protocol | `core/intent/` |
+| 10 | Authenticated network API | `api/` |
 
 ---
 
-## Module Inventory
+## What's Next
 
-**Rust shell** (`shell/`): parser, dispatch, REPL, tool exec, 4 integration tests.
-
-**Python kernel** (`bantu_os/core/`): socket server, kernel loop, intent kernel, memory.
-
-**Services** (`bantu_os/services/`, 16 modules):
-- Tier 1: `file_service`, `process_service`, `network_service`
-- Domain: `hardware`, `iot`, `messaging`, `crypto`, `fintech`
-- Platform: `service_base`, `supervisor`, `scheduler_service`
-- Special: `sandboxed_file_service`
-
-**Agents** (`bantu_os/agents/`): `base_agent`, `agent_manager`, `scheduling_agent`.
-
-**AI** (`bantu_os/ai/`): `service`, `agent`, `tools/`.
-
-**Auth** (`bantu_os/auth/`): session service.
-
----
-
-## Test Inventory
-
-- **Rust:** 4 integration tests in `shell/src/tests/integration_tests.rs` (`cargo test`).
-- **Python unit:** 23 files under `tests/unit/` covering scheduling, knowledge graph, CLI server, services, file, shell, scheduler, LLM manager, Chroma store, smoke.
-- **Python kernel:** 5 files under `tests/kernel/` — kernel core, socket server, async tool pipeline, agentic loop, integration.
-- **Python intent:** 3 files under `tests/intent/` — goal tree, goal planner, intent kernel.
-- **Python agent:** `tests/agent/test_agent_manager.py`.
-- **Python memory:** `tests/memory/test_chroma_integration.py`.
-- **Python integration:** `tests/integration/test_init.py`, `tests/integration/test_shell.py`, `tests/test_e2e_full.py`, `tests/test_e2e_shell_kernel.py`, `tests/test_engine.py`.
-
-**Total: 330 test functions across the suite.**
-
----
-
-## What's Next (in priority order)
-
-1. **Boot the full stack as a single command** — `scripts/demo.sh` does this, but the Rust shell + Python kernel + services trio needs hardening for non-interactive CI runs.
-2. **CI pipeline** — add `cargo test` to GitHub Actions; the Python side is already covered by `pytest`.
-3. **Llm_manager parity test** — the unit test exists; the integration with the AI service async pipeline does not.
-4. **ChromaDB memory integration** — module exists; embeddings are stubbed.
-5. **Architecture decision records** — start an `docs/adr/` folder for the next layer of decisions (multi-user, persistence, persistence model).
+1. Build and run the Docker image on a Docker-capable runner, then exercise the container health check and boot path.
+2. Keep the new regression tests for socket mode `0600`, private API-key persistence, admin-only API-key creation, and PBKDF2 password hashing in the mandatory CI gate.
+3. Implement IPC authentication and replay protection before exposing the TCP listener beyond localhost.
+4. Resolve the existing pytest async-marker warnings.
+5. Continue Phase 4 integration-provider tests with credentials isolated from source control.
 
 ---
 
 ## Build & Test
 
 ```bash
-# Full demo
+python3 -m pytest tests/ -q --tb=short
+cd shell && cargo test --lib --tests
+cd ../init && make clean && make
+cd .. && python3 -m ruff check bantu_os/ tests/
+cd .. && python3 -m black --check bantu_os/ tests/
 bash scripts/demo.sh
-
-# Rust
-cd shell && cargo build && cargo test
-
-# Python
-python -m pytest tests/ -v
 ```
 
 ---
 
 ## Contribution Rules
 
-- **One status doc.** This file. When work is done, update the "What's Working" or "What's Next" section here. Do not add new top-level status files. README/AGENTS link to this file.
-- **One demo.** `scripts/demo.sh` is the canonical proof that the stack works. If you change a service, re-run it. If it goes red, fix before merging.
-- **One test command per layer.** Rust: `cargo test`. Python: `pytest tests/`. Don't add parallel test runners.
+- One status doc: this file.
+- One demo: `scripts/demo.sh`.
+- Do not commit ChromaDB runtime files, coverage output, Rust targets, or compiled C binaries.
+- Run the Python, Rust, C, Ruff, Black, and demo gates before opening a PR.

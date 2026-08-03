@@ -35,8 +35,9 @@ void syscall_register(uint8_t num, const char* name, syscall_handler_t handler, 
     if (num >= SYSCALL_MAX) return;
     if (!name) return;
 
-    // Only register once per slot
-    for (int i = 0; i < SYSCALL_MAX; i++) {
+    if (syscall_count >= SYSCALL_MAX) return;
+
+    for (int i = 0; i < syscall_count; i++) {
         if (syscall_table[i].num == num) return;
     }
 
@@ -53,10 +54,9 @@ int64_t syscall_dispatch(uint8_t num, int arg1, int arg2, int arg3, int arg4) {
         return BANTU_ERR_INVALID_SYSCALL;
     }
 
-    for (int i = 0; i < SYSCALL_MAX; i++) {
+    for (int i = 0; i < syscall_count; i++) {
         if (syscall_table[i].num == num) {
             if (syscall_table[i].handler == NULL) {
-                // No handler registered — this is a stub
                 return BANTU_ERR_NOT_IMPLEMENTED;
             }
             return syscall_table[i].handler(arg1, arg2, arg3, arg4);
@@ -67,7 +67,7 @@ int64_t syscall_dispatch(uint8_t num, int arg1, int arg2, int arg3, int arg4) {
 }
 
 const char* syscall_name(uint8_t num) {
-    for (int i = 0; i < SYSCALL_MAX; i++) {
+    for (int i = 0; i < syscall_count; i++) {
         if (syscall_table[i].num == num) {
             return syscall_table[i].name;
         }
@@ -76,7 +76,7 @@ const char* syscall_name(uint8_t num) {
 }
 
 int syscall_validate(uint8_t num, uint8_t required_flags) {
-    for (int i = 0; i < SYSCALL_MAX; i++) {
+    for (int i = 0; i < syscall_count; i++) {
         if (syscall_table[i].num == num) {
             return (syscall_table[i].flags & required_flags) == required_flags;
         }

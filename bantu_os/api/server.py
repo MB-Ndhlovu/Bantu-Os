@@ -24,8 +24,10 @@ Auth: Authorization: Bearer <api_key> header on all /api/* routes.
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import logging
+import os
 import secrets
 from typing import Any, Dict, Optional
 
@@ -79,7 +81,7 @@ async def auth_middleware(request: web.Request, handler) -> web.Response:
     if not request.path.startswith("/api/"):
         return await handler(request)
 
-    if request.path in ("/api/auth/verify", "/api/auth/key"):
+    if request.path == "/api/auth/verify":
         return await handler(request)
 
     auth_header = request.headers.get("Authorization", "")
@@ -87,7 +89,11 @@ async def auth_middleware(request: web.Request, handler) -> web.Response:
         return _json_error(401, "Missing or invalid Authorization header")
 
     key = auth_header[7:]
-    if _api_key_store is None or not await _api_key_store.verify(key):
+    if request.path == "/api/auth/key":
+        admin_key = os.getenv("BANTU_ADMIN_API_KEY", "")
+        if not admin_key or not hmac.compare_digest(key, admin_key):
+            return _json_error(401, "Admin API key required")
+    elif _api_key_store is None or not await _api_key_store.verify(key):
         return _json_error(401, "Invalid API key")
 
     rate_limiter: RateLimiter = request.app["rate_limiter"]
@@ -95,7 +101,9 @@ async def auth_middleware(request: web.Request, handler) -> web.Response:
         return _json_error(429, "Rate limit exceeded")
 
     request["api_key"] = key
-    request["key_info"] = await _api_key_store.get_key_info(key)
+    request["key_info"] = (
+        await _api_key_store.get_key_info(key) if _api_key_store else {}
+    )
 
     return await handler(request)
 
@@ -143,7 +151,7 @@ async def auth_verify(request: web.Request) -> web.Response:
 
 
 async def auth_create_key(request: web.Request) -> web.Response:
-    """POST /api/auth/key — create a new API key (admin only in production)."""
+    """POST /api/auth/key — create a new API key for an authenticated caller."""
     global _api_key_store
     body = await request.json()
     tier = body.get("tier", "free")

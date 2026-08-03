@@ -181,15 +181,17 @@ class ProcessService:
         """Stop a process gracefully (SIGTERM) or forcefully (SIGKILL)."""
         try:
             proc = psutil.Process(pid)
+            process_name = proc.name()
             sig = signal.SIGKILL if force else signal.SIGTERM
 
             proc.send_signal(sig)
-            proc.wait(timeout=10 if not force else 2)
+            try:
+                proc.wait(timeout=10 if not force else 2)
+            except psutil.NoSuchProcess:
+                pass
 
             status = "killed" if force else "terminated"
-            self._log_operation(status, pid, proc.name())
-
-            # Clean up from managed
+            self._log_operation(status, pid, process_name)
             self._managed_processes.pop(pid, None)
 
             return {
@@ -199,6 +201,7 @@ class ProcessService:
                 "timestamp": datetime.now().isoformat(),
             }
         except psutil.NoSuchProcess:
+            self._managed_processes.pop(pid, None)
             raise ProcessLookupError(f"Process {pid} not found")
         except psutil.TimeoutExpired:
             raise TimeoutError(f"Process {pid} did not respond to {sig.name}")

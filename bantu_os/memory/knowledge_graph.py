@@ -63,6 +63,12 @@ class KnowledgeGraph:
             properties=properties or {},
             weight=weight,
         )
+        previous = self._edges.get(id)
+        if previous is not None:
+            outgoing = self._outgoing.get(previous.from_id, [])
+            self._outgoing[previous.from_id] = [
+                edge_id for edge_id in outgoing if edge_id != id
+            ]
         self._edges[id] = edge
         self._outgoing.setdefault(from_id, []).append(id)
         return edge

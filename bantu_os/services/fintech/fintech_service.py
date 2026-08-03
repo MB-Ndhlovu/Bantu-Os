@@ -36,6 +36,9 @@ from typing import Any
 
 import aiohttp
 
+HTTP_TIMEOUT = aiohttp.ClientTimeout(total=15)
+STRIPE_HTTP_TIMEOUT = 15
+
 
 class FintechService:
     """Payment and financial transaction service."""
@@ -63,6 +66,7 @@ class FintechService:
                 self._mpesa_consumer_key
                 and self._mpesa_consumer_secret
                 and self._mpesa_shortcode
+                and self._mpesa_passkey
             ),
             "flutterwave_configured": bool(self._flutterwave_key),
             "paystack_configured": bool(self._paystack_key),
@@ -106,10 +110,23 @@ class FintechService:
         """
         if not self._stripe_key:
             raise EnvironmentError("STRIPE_SECRET_KEY not set.")
+        if not isinstance(amount, int) or amount <= 0:
+            raise ValueError("amount must be a positive integer")
+        if (
+            not isinstance(currency, str)
+            or len(currency) != 3
+            or not currency.isalpha()
+        ):
+            raise ValueError("currency must be a three-letter ISO 4217 code")
+        if not isinstance(customer_email, str) or "@" not in customer_email:
+            raise ValueError("customer_email must be a valid email address")
+        if description is not None and not isinstance(description, str):
+            raise ValueError("description must be a string or None")
 
         import stripe
 
         stripe.api_key = self._stripe_key
+        stripe.default_http_client = stripe.RequestsClient(timeout=STRIPE_HTTP_TIMEOUT)
 
         session = stripe.checkout.Session.create(
             payment_method_types=["card"],
@@ -154,9 +171,13 @@ class FintechService:
             raise ValueError(f"Unknown provider: {provider!r}")
 
     async def _stripe_balance(self) -> dict[str, Any]:
+        if not self._stripe_key:
+            raise EnvironmentError("STRIPE_SECRET_KEY not set.")
+
         import stripe
 
         stripe.api_key = self._stripe_key
+        stripe.default_http_client = stripe.RequestsClient(timeout=STRIPE_HTTP_TIMEOUT)
         balance = stripe.Balance.retrieve()
         available = balance.available
         return {
@@ -192,12 +213,16 @@ class FintechService:
                 "MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, "
                 "and MPESA_SHORTCODE must all be set."
             )
+        if not self._mpesa_passkey:
+            raise EnvironmentError("MPESA_PASSKEY must be set.")
+        if not isinstance(amount, int) or amount <= 0:
+            raise ValueError("amount must be a positive integer")
+        phone = self._normalize_msisdn(phone)
+        if len(phone) != 12 or not phone.startswith("254"):
+            raise ValueError("phone must be a valid Kenyan MSISDN")
 
         token = await self._mpesa_get_token()
         headers = {"Authorization": f"Bearer {token}"}
-
-        # Normalize phone to MSISDN format (254...)
-        phone = self._normalize_msisdn(phone)
 
         import base64
         import datetime as dt
@@ -222,14 +247,18 @@ class FintechService:
         }
 
         url = "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
             async with session.post(url, json=payload, headers=headers) as resp:
                 data = await resp.json()
-                if resp.status >= 400:
+                if resp.status >= 400 or data.get("ResponseCode") not in {None, "0", 0}:
                     raise RuntimeError(
                         f"M-Pesa error: {data.get('errorMessage', data)}"
                     )
                 checkout_id = data.get("CheckoutRequestID", "")
+                if not checkout_id:
+                    raise RuntimeError(
+                        "M-Pesa response did not include CheckoutRequestID"
+                    )
                 # Poll for confirmation
                 status = await self._mpesa_poll(checkout_id, phone, headers)
                 return {
@@ -246,13 +275,21 @@ class FintechService:
 
         url = "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
         auth = aiohttp.BasicAuth(self._mpesa_consumer_key, self._mpesa_consumer_secret)
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
             async with session.get(url, auth=auth) as resp:
                 data = await resp.json()
                 if resp.status >= 400:
                     raise RuntimeError(f"M-Pesa auth error: {data}")
-                self._mpesa_token = data["access_token"]
-                self._mpesa_token_expires_at = now + data.get("expires_in", 3600) - 60
+                access_token = data.get("access_token")
+                if not isinstance(access_token, str) or not access_token:
+                    raise RuntimeError(
+                        "M-Pesa auth response did not include access_token"
+                    )
+                self._mpesa_token = access_token
+                expires_in = data.get("expires_in", 3600)
+                if not isinstance(expires_in, (int, float)) or expires_in <= 60:
+                    expires_in = 3600
+                self._mpesa_token_expires_at = now + expires_in - 60
                 return self._mpesa_token
 
     async def _mpesa_poll(
@@ -282,7 +319,7 @@ class FintechService:
 
         deadline = time.time() + max_wait
         while time.time() < deadline:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
                 async with session.post(url, json=payload, headers=headers) as resp:
                     data = await resp.json()
                     result_code = data.get("ResultCode")
@@ -323,6 +360,20 @@ class FintechService:
         """
         if not self._flutterwave_key:
             raise EnvironmentError("FLUTTERWAVE_SECRET_KEY not set.")
+        if not isinstance(amount, int) or amount <= 0:
+            raise ValueError("amount must be a positive integer")
+        if (
+            not isinstance(currency, str)
+            or len(currency) != 3
+            or not currency.isalpha()
+        ):
+            raise ValueError("currency must be a three-letter ISO 4217 code")
+        if not isinstance(reference, str) or not reference.strip():
+            raise ValueError("reference must be a non-empty string")
+        if customer_email is not None and (
+            not isinstance(customer_email, str) or "@" not in customer_email
+        ):
+            raise ValueError("customer_email must be a valid email address")
 
         url = "https://api.flutterwave.com/v3/payments"
         headers = {
@@ -333,7 +384,7 @@ class FintechService:
             "tx_ref": reference,
             "amount": amount,
             "currency": currency.upper(),
-            "redirect_url": "https://bantu-os.local/payment/fluttewave/return",
+            "redirect_url": "https://bantu-os.local/payment/flutterwave/return",
             "meta": {"reference": reference},
             "customer": {
                 "email": customer_email or "",
@@ -346,10 +397,10 @@ class FintechService:
             },
         }
 
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
             async with session.post(url, json=payload, headers=headers) as resp:
                 data = await resp.json()
-                if data.get("status") != "success":
+                if resp.status >= 400 or data.get("status") != "success":
                     raise RuntimeError(
                         f"Flutterwave error: {data.get('message', data)}"
                     )
@@ -361,10 +412,10 @@ class FintechService:
         headers = {
             "Authorization": f"Bearer {self._flutterwave_key}",
         }
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
             async with session.get(url, headers=headers) as resp:
                 data = await resp.json()
-                if data.get("status") != "success":
+                if resp.status >= 400 or data.get("status") != "success":
                     return {"error": data.get("message", "failed")}
                 balances = data.get("data", [])
                 return {
@@ -393,6 +444,14 @@ class FintechService:
         """
         if not self._paystack_key:
             raise EnvironmentError("PAYSTACK_SECRET_KEY not set.")
+        if not isinstance(amount, int) or amount <= 0:
+            raise ValueError("amount must be a positive integer")
+        if not isinstance(email, str) or "@" not in email:
+            raise ValueError("email must be a valid email address")
+        if reference is not None and (
+            not isinstance(reference, str) or not reference.strip()
+        ):
+            raise ValueError("reference must be a non-empty string or None")
 
         url = "https://api.paystack.co/transaction/initialize"
         headers = {
@@ -406,10 +465,10 @@ class FintechService:
             "callback_url": "https://bantu-os.local/payment/paystack/return",
         }
 
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
             async with session.post(url, json=payload, headers=headers) as resp:
                 data = await resp.json()
-                if not data.get("status"):
+                if resp.status >= 400 or not data.get("status"):
                     raise RuntimeError(f"Paystack error: {data.get('message', data)}")
                 result = data.get("data", {})
                 return {
@@ -420,10 +479,10 @@ class FintechService:
     async def _paystack_balance(self) -> dict[str, Any]:
         url = "https://api.paystack.co/balance"
         headers = {"Authorization": f"Bearer {self._paystack_key}"}
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
             async with session.get(url, headers=headers) as resp:
                 data = await resp.json()
-                if not data.get("status"):
+                if resp.status >= 400 or not data.get("status"):
                     return {"error": data.get("message", "failed")}
                 balances = data.get("data", [])
                 return {

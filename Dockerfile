@@ -14,7 +14,7 @@ FROM python:3.11-slim
 
 LABEL maintainer="Malibongwe Ndhlovu <malibongwendhlovu05@gmail.com>"
 LABEL description="Bantu-OS: AI-native Linux OS — AI-powered OS layer for Linux"
-HOMEPAGE="https://github.com/MB-Ndhlovu/Bantu-Os"
+LABEL homepage="https://github.com/MB-Ndhlovu/Bantu-Os"
 
 WORKDIR /app
 
@@ -39,6 +39,7 @@ COPY bantu_os/  ./bantu_os/
 COPY init/       ./init/
 COPY tests/      ./tests/
 COPY Makefile    ./
+COPY scripts/     ./scripts/
 COPY start.sh    ./
 COPY README.md    ./
 

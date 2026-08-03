@@ -550,7 +550,7 @@ class SocketServer:
             factory,
             path=self.unix_path,
         )
-        os.chmod(self.unix_path, 0o666)
+        os.chmod(self.unix_path, 0o600)
         print(f"Unix socket listening on {self.unix_path}", flush=True)
 
     async def _run_tcp_server(self) -> None:

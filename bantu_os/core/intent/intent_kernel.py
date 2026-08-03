@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 
 
@@ -271,24 +272,52 @@ class IntentKernel:
     # ------------------------------------------------------------------
     # Leaf execution via AgentManager
     # ------------------------------------------------------------------
+    @staticmethod
+    def _tool_error(outcome: str | dict[str, Any]) -> str | None:
+        if isinstance(outcome, dict):
+            if outcome.get("ok") is False or outcome.get("success") is False:
+                return str(outcome.get("error") or "Tool execution failed")
+            return None
+
+        lowered = outcome.lower()
+        error_prefixes = (
+            "unknown tool",
+            "agentmanager has no kernel",
+            "tool '",
+        )
+        if lowered.startswith(error_prefixes):
+            return outcome
+        return None
+
     async def _execute_leaf(self, node: GoalNode) -> str:
         if node.tool and hasattr(self.agent_manager, "_execute_tool_call"):
             outcome = await self.agent_manager._execute_tool_call(
                 node.tool, node.tool_params or {}
             )
-            if isinstance(outcome, str):
-                if outcome.lower().startswith("unknown tool"):
-                    return str(await self.agent_manager.execute(node.text))
+            if isinstance(outcome, str) and outcome.lower().startswith("unknown tool"):
+                outcome = await self.agent_manager.execute(node.text)
+            if isinstance(outcome, (str, dict)):
+                error = self._tool_error(outcome)
+                if error:
+                    raise RuntimeError(error)
+                if isinstance(outcome, dict):
+                    if outcome.get("ok") is True and "result" in outcome:
+                        return str(outcome["result"])
+                    if outcome.get("success") is True and "result" in outcome:
+                        return str(outcome["result"])
+                    return json.dumps(outcome, default=str)
                 return outcome
-            if isinstance(outcome, dict):
-                error = str(outcome.get("error", ""))
-                if outcome.get("ok") is True and "result" in outcome:
-                    return str(outcome["result"])
-                if "unknown tool" in error.lower():
-                    return str(await self.agent_manager.execute(node.text))
-                raise RuntimeError(error or "Tool execution failed")
         if hasattr(self.agent_manager, "execute"):
-            return str(await self.agent_manager.execute(node.text))
+            outcome = await self.agent_manager.execute(node.text)
+            if isinstance(outcome, (str, dict)):
+                error = self._tool_error(outcome)
+                if error:
+                    raise RuntimeError(error)
+                return (
+                    json.dumps(outcome, default=str)
+                    if isinstance(outcome, dict)
+                    else outcome
+                )
         raise RuntimeError("No execution backend configured")
 
     # ------------------------------------------------------------------

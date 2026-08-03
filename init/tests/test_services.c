@@ -114,6 +114,8 @@ void test_parse_config_line(void)
     assert(strcmp(svc.name, "syslog") == 0);
     assert(svc.priority == 10);
     assert(strcmp(svc.exec_path, "/sbin/syslogd") == 0);
+    for (int i = 0; i < svc.argc; i++)
+        free(svc.argv[i]);
 
     printf("[test] PASS\n");
 }

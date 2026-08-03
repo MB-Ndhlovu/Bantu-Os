@@ -120,10 +120,12 @@ int setup_hostname(void)
 {
     FILE *fp = fopen("/etc/hostname", "r");
     if (fp) {
-        char hostname[256];
-        if (fgets(hostname, sizeof(hostname), fp))
-            hostname[strcspn(hostname, "\n")] = 0;
-        sethostname(hostname, strlen(hostname));
+        char hostname[256] = {0};
+        if (fgets(hostname, sizeof(hostname), fp)) {
+            hostname[strcspn(hostname, "\r\n")] = 0;
+            if (hostname[0] && sethostname(hostname, strlen(hostname)) != 0)
+                perror("[init] sethostname failed");
+        }
         fclose(fp);
     }
     return 0;

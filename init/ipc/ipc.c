@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/select.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <stdio.h>
 
@@ -19,6 +20,44 @@ static int ipc_make_fifo(const char* path) {
 
 static void ipc_path_for_pid(char* buf, size_t bufsiz, int32_t pid, int type) {
     snprintf(buf, bufsiz, "/tmp/bantu_ipc_%d_%c", pid, type == 0 ? 'r' : 'w');
+}
+
+static int write_all(int fd, const void *buffer, size_t length)
+{
+    const char *cursor = buffer;
+
+    while (length > 0) {
+        ssize_t written = write(fd, cursor, length);
+        if (written < 0) {
+            if (errno == EINTR)
+                continue;
+            return BANTU_ERR_IPC_FAILED;
+        }
+        if (written == 0)
+            return BANTU_ERR_IPC_FAILED;
+        cursor += written;
+        length -= (size_t)written;
+    }
+    return BANTU_OK;
+}
+
+static int read_all(int fd, void *buffer, size_t length)
+{
+    char *cursor = buffer;
+
+    while (length > 0) {
+        ssize_t received = read(fd, cursor, length);
+        if (received < 0) {
+            if (errno == EINTR)
+                continue;
+            return BANTU_ERR_IPC_FAILED;
+        }
+        if (received == 0)
+            return BANTU_ERR_IPC_FAILED;
+        cursor += received;
+        length -= (size_t)received;
+    }
+    return BANTU_OK;
 }
 
 int ipc_endpoint_create(int32_t pid, ipc_endpoint_t* ep) {
@@ -64,27 +103,29 @@ void ipc_endpoint_destroy(ipc_endpoint_t* ep) {
 
 int ipc_send(ipc_endpoint_t* from, int32_t to_pid, ipc_message_t* msg) {
     if (!from || !msg) return BANTU_ERR_NULL_PTR;
-    if (msg->payload_len > IPC_MAX_PAYLOAD) return BANTU_ERR_INVALID;
+    if (to_pid <= 0 || msg->magic != IPC_MAGIC ||
+        msg->type < IPC_MSG_REQUEST || msg->type > IPC_MSG_SIGNAL ||
+        msg->payload_len > IPC_MAX_PAYLOAD ||
+        msg->sender_pid <= 0 || msg->receiver_pid != to_pid)
+        return BANTU_ERR_INVALID;
 
-    // Simple approach: write message to receiver's read fifo
     char rpath[128];
     ipc_path_for_pid(rpath, sizeof(rpath), to_pid, 'r');
 
     int fd = open(rpath, O_WRONLY | O_NONBLOCK);
     if (fd < 0) return BANTU_ERR_NOT_FOUND;
 
-    // Encode as length-prefixed binary for safety
     uint32_t len = sizeof(ipc_message_t);
-    write(fd, &len, sizeof(len));
-    write(fd, msg, sizeof(ipc_message_t));
+    int result = write_all(fd, &len, sizeof(len));
+    if (result == BANTU_OK)
+        result = write_all(fd, msg, sizeof(ipc_message_t));
     close(fd);
-    return BANTU_OK;
+    return result;
 }
 
 int ipc_recv(ipc_endpoint_t* ep, ipc_message_t* msg, uint32_t timeout_ms) {
     if (!ep || !msg) return BANTU_ERR_NULL_PTR;
 
-    // Poll with timeout using select() — simplified
     fd_set rfds;
     struct timeval tv;
     FD_ZERO(&rfds);
@@ -105,18 +146,26 @@ int ipc_recv(ipc_endpoint_t* ep, ipc_message_t* msg, uint32_t timeout_ms) {
     tv.tv_usec = (timeout_ms % 1000) * 1000;
 
     int ready = select(maxfd + 1, &rfds, NULL, NULL, &tv);
-    if (ready <= 0) return BANTU_ERR_TIMEOUT;
+    if (ready < 0)
+        return errno == EINTR ? BANTU_ERR_TIMEOUT : BANTU_ERR_IPC_FAILED;
+    if (ready == 0)
+        return BANTU_ERR_TIMEOUT;
 
-    // Read from the ready fd
     cur = ep->channels;
     while (cur) {
         if (cur->read_fd >= 0 && FD_ISSET(cur->read_fd, &rfds)) {
             uint32_t len = 0;
-            if (read(cur->read_fd, &len, sizeof(len)) != sizeof(len)) continue;
-            if (len > sizeof(ipc_message_t)) continue;
-            if (read(cur->read_fd, msg, len) == (ssize_t)len) {
-                return BANTU_OK;
-            }
+            if (read_all(cur->read_fd, &len, sizeof(len)) != BANTU_OK)
+                return BANTU_ERR_IPC_FAILED;
+            if (len != sizeof(ipc_message_t))
+                return BANTU_ERR_INVALID;
+            if (read_all(cur->read_fd, msg, sizeof(*msg)) != BANTU_OK)
+                return BANTU_ERR_IPC_FAILED;
+            if (msg->magic != IPC_MAGIC || msg->type < IPC_MSG_REQUEST ||
+                msg->type > IPC_MSG_SIGNAL || msg->payload_len > IPC_MAX_PAYLOAD ||
+                msg->receiver_pid != cur->pid)
+                return BANTU_ERR_INVALID;
+            return BANTU_OK;
         }
         cur = cur->next;
     }

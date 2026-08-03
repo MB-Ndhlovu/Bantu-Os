@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from .embeddings.base import EmbeddingsProvider
-from .vector_store import ChromaVectorStore, VectorStore
+from .vector_store import ChromaVectorStore, VectorDBStore, VectorStore
 
 
 class Memory:
@@ -31,10 +31,19 @@ class Memory:
         store: Optional[VectorStore] = None,
         embeddings: Optional[EmbeddingsProvider] = None,
         dim: int = 768,
+        vector_db: Any = None,
+        knowledge_graph: Any = None,
     ) -> None:
-        self.store = store or ChromaVectorStore(dim=dim)
-        self.embeddings = embeddings  # optional: caller may provide later
-        self.dim = dim
+        if store is not None and vector_db is not None:
+            raise ValueError("Provide store or vector_db, not both")
+        self.store = store or (
+            VectorDBStore(dim=dim, db=vector_db)
+            if vector_db is not None
+            else ChromaVectorStore(dim=dim)
+        )
+        self.embeddings = embeddings
+        self.knowledge_graph = knowledge_graph
+        self.dim = getattr(self.store, "dim", dim)
 
     def set_embeddings_provider(self, provider: EmbeddingsProvider) -> None:
         self.embeddings = provider
