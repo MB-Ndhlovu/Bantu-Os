@@ -2,13 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main, feat/*]
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
-  # ── Python ──────────────────────────────────────────────────────────────
   python-checks:
     runs-on: ubuntu-latest
     steps:
@@ -20,7 +17,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install -q pytest pytest-asyncio black ruff
+        run: pip install -q -r requirements.txt pytest pytest-asyncio black ruff
 
       - name: Check formatting (black)
         run: python -m black --check bantu_os/ tests/
@@ -39,12 +36,11 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install -q pytest pytest-asyncio
+        run: pip install -q -r requirements.txt pytest pytest-asyncio
 
       - name: Run pytest
         run: python -m pytest tests/ -v --tb=short
 
-  # ── Rust ────────────────────────────────────────────────────────────────
   rust-check:
     runs-on: ubuntu-latest
     steps:
@@ -61,7 +57,6 @@ jobs:
       - name: Run Rust tests
         run: cd shell && cargo test --lib --tests
 
-  # ── C (init) ────────────────────────────────────────────────────────────
   c-check:
     runs-on: ubuntu-latest
     steps:

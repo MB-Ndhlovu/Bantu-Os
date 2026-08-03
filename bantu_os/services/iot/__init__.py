@@ -39,8 +39,10 @@ Usage:
 from __future__ import annotations
 
 
+import asyncio
 import os
 import time
+from urllib.parse import urlparse
 from typing import Any, Dict, Optional
 
 from bantu_os.services.service_base import ServiceBase
@@ -124,34 +126,69 @@ class _MQTTClient:
         if not _MQTT_AVAILABLE:
             raise OSError("paho-mqtt not installed. Run: pip install paho-mqtt")
 
+        parsed = urlparse(broker_url)
+        if parsed.scheme not in {"mqtt", "mqtts"} or not parsed.hostname:
+            raise ValueError("MQTT_BROKER_URL must use mqtt:// or mqtts:// with a host")
+        if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+            raise ValueError(
+                "MQTT_BROKER_URL must not include a path, query, or fragment"
+            )
+        if parsed.username or parsed.password:
+            raise ValueError("MQTT_BROKER_URL must not contain credentials")
         self._broker = broker_url
         self._connected = False
         self._client = mqtt.Client(
             client_id=client_id or f"bantu-iot-{os.uname().nodename}",
             clean_session=True,
         )
+        if bool(username) != bool(password):
+            raise ValueError(
+                "MQTT_USERNAME and MQTT_PASSWORD must be provided together"
+            )
         if username and password:
             self._client.username_pw_set(username, password)
+        if parsed.scheme == "mqtts":
+            self._client.tls_set()
 
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
         self._messages: Dict[str, list] = {}
 
     def _on_connect(self, client, userdata, flags, rc) -> None:
-        self._connected = True
+        self._connected = rc == 0
 
     def _on_disconnect(self, client, userdata, rc) -> None:
         self._connected = False
 
     def connect(self, timeout: float = 5.0) -> None:
-        parts = self._broker.replace("mqtt://", "").replace("mqtts://", "")
-        host, port_str = parts.split(":") if ":" in parts else (parts, "1883")
-        self._client.connect(host, int(port_str), timeout=int(timeout))
+        parsed = urlparse(self._broker)
+        host = parsed.hostname
+        port = parsed.port or (8883 if parsed.scheme == "mqtts" else 1883)
+        if not host or not 1 <= port <= 65535:
+            raise ValueError("MQTT_BROKER_URL contains an invalid host or port")
+        if timeout <= 0:
+            raise ValueError("MQTT connection timeout must be positive")
+        self._client.connect_timeout = float(timeout)
         self._client.loop_start()
+        try:
+            rc = self._client.connect(host, port)
+            if rc != mqtt.MQTT_ERR_SUCCESS:
+                raise OSError(f"MQTT connection rejected with return code {rc}")
+        except Exception:
+            self._client.loop_stop()
+            raise
+        deadline = time.monotonic() + timeout
+        while not self._connected and time.monotonic() < deadline:
+            time.sleep(0.01)
+        if not self._connected:
+            self._client.loop_stop()
+            raise TimeoutError(
+                "MQTT broker did not accept the connection before timeout"
+            )
 
     def disconnect(self) -> None:
-        self._client.loop_stop()
         self._client.disconnect()
+        self._client.loop_stop()
 
     @property
     def is_connected(self) -> bool:
@@ -161,6 +198,8 @@ class _MQTTClient:
         if not self._connected:
             raise OSError("MQTT client not connected. Call connect() first.")
         info = self._client.publish(topic, payload.encode(), qos=qos)
+        if info.rc != mqtt.MQTT_ERR_SUCCESS:
+            raise OSError(f"MQTT publish rejected with return code {info.rc}")
         return {"mid": info.mid, "rc": info.rc, "topic": topic}
 
     def subscribe(self, topic: str, qos: int = 0) -> None:
@@ -212,7 +251,7 @@ class IoTService(ServiceBase):
         try:
             client = self._get_client()
             return {
-                "status": "ok",
+                "status": "ok" if client.is_connected else "degraded",
                 "service": self.name,
                 "mqtt_broker": os.environ.get(
                     "MQTT_BROKER_URL", "mqtt://localhost:1883"
@@ -220,7 +259,7 @@ class IoTService(ServiceBase):
                 "connected": client.is_connected,
                 "devices_registered": len(_DEVICE_REGISTRY),
             }
-        except OSError as e:
+        except (OSError, ValueError) as e:
             return {"status": "degraded", "service": self.name, "error": str(e)}
 
     @property
@@ -263,15 +302,28 @@ class IoTService(ServiceBase):
         Returns:
             ``{'mid': <int>, 'rc': <int>, 'topic': <str>}``
         """
+        if (
+            not isinstance(topic, str)
+            or not topic.strip()
+            or "#" in topic
+            or "+" in topic
+        ):
+            raise ValueError(
+                "topic must be a non-empty publish topic without wildcards"
+            )
+        if not isinstance(payload, str):
+            raise ValueError("payload must be a string")
+        if qos not in {0, 1, 2}:
+            raise ValueError("qos must be 0, 1, or 2")
         if not _MQTT_AVAILABLE:
             raise OSError("paho-mqtt is not installed. Run: pip install paho-mqtt")
-        client = self._get_client()
         try:
+            client = self._get_client()
             if not client.is_connected:
-                client.connect()
+                await asyncio.to_thread(client.connect)
             return client.publish(topic, payload, qos=qos)
         except Exception as e:
-            raise OSError(f"MQTT publish failed: {e}")
+            raise OSError(f"MQTT publish failed: {e}") from e
 
     async def iot_subscribe(
         self,
@@ -290,19 +342,27 @@ class IoTService(ServiceBase):
         Returns:
             ``{'topic': <str>, 'messages': [...], 'count': <int>}``
         """
+        if not isinstance(topic, str) or not topic.strip():
+            raise ValueError("topic must be a non-empty string")
+        if "\x00" in topic:
+            raise ValueError("topic must not contain NUL characters")
+        if qos not in {0, 1, 2}:
+            raise ValueError("qos must be 0, 1, or 2")
+        if not isinstance(timeout, (int, float)) or not 0 < timeout <= 300:
+            raise ValueError("timeout must be greater than 0 and at most 300 seconds")
         if not _MQTT_AVAILABLE:
             raise OSError("paho-mqtt is not installed. Run: pip install paho-mqtt")
-        client = self._get_client()
         try:
+            client = self._get_client()
             if not client.is_connected:
-                client.connect()
+                await asyncio.to_thread(client.connect)
             client.subscribe(topic, qos=qos)
             client._client.on_message = client.on_message
-            time.sleep(timeout)
+            await asyncio.sleep(timeout)
             messages = client.get_messages(topic)
             return {"topic": topic, "messages": messages, "count": len(messages)}
         except Exception as e:
-            raise OSError(f"MQTT subscribe failed: {e}")
+            raise OSError(f"MQTT subscribe failed: {e}") from e
 
     async def iot_list_devices(self) -> Dict[str, Any]:
         """

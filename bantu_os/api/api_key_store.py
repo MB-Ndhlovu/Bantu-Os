@@ -38,7 +38,11 @@ class APIKeyStore:
 
     def _save(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(json.dumps(self._cache, indent=2))
+        temporary_path = self._path.with_suffix(f"{self._path.suffix}.tmp")
+        temporary_path.write_text(json.dumps(self._cache, indent=2), encoding="utf-8")
+        temporary_path.chmod(0o600)
+        temporary_path.replace(self._path)
+        self._path.chmod(0o600)
 
     @staticmethod
     def _hash_key(key: str) -> str:

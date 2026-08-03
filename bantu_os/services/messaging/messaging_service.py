@@ -35,8 +35,8 @@ import aiohttp
 from bantu_os.services.service_base import ServiceBase
 
 HTTP_TIMEOUT = aiohttp.ClientTimeout(total=15)
-E164_PATTERN = re.compile(r"^\\+[1-9]\\d{7,14}$")
-EMAIL_PATTERN = re.compile(r"^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
+E164_PATTERN = re.compile(r"^\+[1-9]\d{7,14}$")
+EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
 class MessagingService(ServiceBase):
@@ -52,7 +52,7 @@ class MessagingService(ServiceBase):
         try:
             self._smtp_port = int(os.getenv("SMTP_PORT", "587"))
         except ValueError:
-            self._smtp_port = 587
+            self._smtp_port = 0
         self._smtp_username = os.getenv("SMTP_USERNAME", "")
         self._smtp_password = os.getenv("SMTP_PASSWORD", "")
         self._smtp_default_from = os.getenv("SMTP_DEFAULT_FROM", "")
@@ -65,7 +65,12 @@ class MessagingService(ServiceBase):
         return {
             "status": "ok",
             "service": self.name,
-            "email_configured": bool(self._smtp_username and self._smtp_password),
+            "email_configured": bool(
+                self._smtp_username
+                and self._smtp_password
+                and self._smtp_host
+                and 1 <= self._smtp_port <= 65535
+            ),
             "sms_configured": bool(
                 self._twilio_account_sid
                 and self._twilio_auth_token
@@ -142,6 +147,8 @@ class MessagingService(ServiceBase):
             raise EnvironmentError(
                 "SMTP_USERNAME / SMTP_PASSWORD not set. " "Cannot send email."
             )
+        if not self._smtp_host or not 1 <= self._smtp_port <= 65535:
+            raise ValueError("SMTP_HOST and SMTP_PORT must be valid")
 
         self._validate_email(to, "recipient")
         from_addr = from_addr or self._smtp_default_from or self._smtp_username
@@ -256,13 +263,12 @@ class MessagingService(ServiceBase):
         payload = {
             "chat_id": chat_id,
             "text": text,
-            "parse_mode": "Markdown",
         }
 
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
             async with session.post(url, json=payload) as resp:
                 data = await resp.json()
-                if not data.get("ok"):
+                if resp.status >= 400 or not data.get("ok"):
                     raise RuntimeError(
                         f"Telegram API error: {data.get('description', data)}"
                     )
@@ -277,7 +283,7 @@ class MessagingService(ServiceBase):
         This is the bot's DM chat — we use it when the user passes 'me'.
         """
         url = f"https://api.telegram.org/bot{self._telegram_token}/" f"getUpdates"
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
             async with session.get(url) as resp:
                 data = await resp.json()
                 if not data.get("ok"):
@@ -285,9 +291,11 @@ class MessagingService(ServiceBase):
                         f"Telegram getUpdates error: {data.get('description', data)}"
                     )
                 updates = data.get("result", [])
-                if updates:
-                    # First update's chat is the bot's DM conversation
-                    return str(updates[0]["message"]["chat"]["id"])
+                for update in updates:
+                    message = update.get("message") or update.get("edited_message")
+                    chat = message.get("chat") if isinstance(message, dict) else None
+                    if isinstance(chat, dict) and chat.get("id") is not None:
+                        return str(chat["id"])
                 raise RuntimeError(
-                    "No Telegram updates found. Start a chat with your bot first."
+                    "No Telegram message updates found. Start a chat with your bot first."
                 )

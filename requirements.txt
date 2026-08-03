@@ -1,3 +1,8 @@
-Dependencies are managed in pyproject.toml
-
-To install: pip install -e .
+aiohttp>=3.9.5,<4
+numpy>=1.26.0,<2
+pydantic>=1.10.15,<2
+chromadb>=0.4.0,<1
+paho-mqtt>=1.6.0,<2
+psutil>=5.9.0,<6
+web3>=6.0.0,<7
+stripe>=11.0.0,<12

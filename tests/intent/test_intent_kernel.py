@@ -52,3 +52,23 @@ async def test_intent_kernel_clarification_path():
     result = await kernel.receive("deploy project")
     assert result["type"] == "clarification_needed"
     assert result["question"] == "Which one?"
+
+
+@pytest.mark.asyncio
+async def test_intent_kernel_fails_goal_when_tool_returns_error():
+    class FailingPlanner:
+        async def decompose(self, text, context=None):
+            root = GoalNode(text=text, level=0)
+            root.add_child(
+                GoalNode(text="do work", level=1, tool="boom", tool_params={})
+            )
+            return GoalTree(root=root)
+
+    agent = AgentManager()
+    agent.register_tool("boom", lambda: (_ for _ in ()).throw(RuntimeError("kaboom")))
+    kernel = IntentKernel(agent_manager=agent, planner=FailingPlanner())
+
+    result = await kernel.receive("deploy project")
+
+    assert result["type"] == "goal_failed"
+    assert "kaboom" in result["error"]

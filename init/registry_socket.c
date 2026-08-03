@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>
 #include "registry_socket.h"
@@ -14,7 +15,21 @@
 static int write_response(int fd, const char *json)
 {
     size_t len = strlen(json);
-    return write(fd, json, len) == (ssize_t)len ? 0 : -1;
+    const char *cursor = json;
+
+    while (len > 0) {
+        ssize_t written = write(fd, cursor, len);
+        if (written < 0) {
+            if (errno == EINTR)
+                continue;
+            return -1;
+        }
+        if (written == 0)
+            return -1;
+        cursor += written;
+        len -= (size_t)written;
+    }
+    return 0;
 }
 
 static void handle_request(int fd)
@@ -74,6 +89,11 @@ static void handle_request(int fd)
 
 int registry_socket_start(const char *path)
 {
+    if (!path || path[0] == '\0' || strlen(path) >= sizeof(((struct sockaddr_un *)0)->sun_path)) {
+        errno = EINVAL;
+        return -1;
+    }
+
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0)
         return -1;
@@ -81,8 +101,9 @@ int registry_socket_start(const char *path)
     struct sockaddr_un address = {0};
     address.sun_family = AF_UNIX;
     strncpy(address.sun_path, path, sizeof(address.sun_path) - 1);
-    if (bind(fd, (struct sockaddr *)&address, sizeof(address)) < 0 || listen(fd, 8) < 0) {
+    if (bind(fd, (struct sockaddr *)&address, sizeof(address)) < 0 || listen(fd, 8) < 0 || chmod(path, 0660) < 0) {
         close(fd);
+        unlink(path);
         return -1;
     }
     return fd;
@@ -90,11 +111,18 @@ int registry_socket_start(const char *path)
 
 int registry_socket_poll(int server_fd, int timeout_ms)
 {
+    if (server_fd < 0 || timeout_ms < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
     fd_set readfds;
     struct timeval timeout = {.tv_sec = timeout_ms / 1000, .tv_usec = (timeout_ms % 1000) * 1000};
     FD_ZERO(&readfds);
     FD_SET(server_fd, &readfds);
     int ready = select(server_fd + 1, &readfds, NULL, NULL, &timeout);
+    if (ready < 0)
+        return -1;
     if (ready > 0 && FD_ISSET(server_fd, &readfds)) {
         int client = accept(server_fd, NULL, NULL);
         if (client >= 0) {

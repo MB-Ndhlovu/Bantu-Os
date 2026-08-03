@@ -192,15 +192,40 @@ class AgentManager:
     # -------------------------------------------------------------------------
     # Tool execution helpers
     # -------------------------------------------------------------------------
-    async def _execute_tool_call(self, tool_name: str, args: dict) -> str:
-        """Run a single registered tool and return its result as a string."""
-        if tool_name not in self._tools:
+    async def _execute_tool_call(self, tool_name: str, args: dict) -> str | dict:
+        """Run a registered callable or service method and return its result."""
+        call_args = dict(args or {})
+        method_name = call_args.pop("method", None)
+        registered = self._tools.get(tool_name)
+
+        if registered is None and "." in tool_name:
+            service_name, dotted_method = tool_name.split(".", 1)
+            registered = self._tools.get(service_name)
+            method_name = method_name or dotted_method
+
+        if registered is None:
             return f"Unknown tool: {tool_name}"
+
         try:
-            result = self._tools[tool_name](**args)
+            if method_name:
+                if not isinstance(method_name, str) or not method_name:
+                    return f"Tool '{tool_name}' argument error: method must be a non-empty string"
+                instance = registered() if isinstance(registered, type) else registered
+                method = getattr(instance, method_name, None)
+                if method is None or not callable(method):
+                    return f"Tool '{tool_name}' method not found: {method_name}"
+                result = method(**call_args)
+            else:
+                result = registered(**call_args)
             if asyncio.iscoroutine(result):
                 result = await result
-            return str(result)
+            if (
+                isinstance(result, dict)
+                and "ok" in result
+                and result.get("ok") is False
+            ):
+                return result
+            return str(result) if not isinstance(result, dict) else result
         except TypeError as e:
             return f"Tool '{tool_name}' argument error: {e}"
         except Exception as e:

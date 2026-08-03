@@ -6,6 +6,7 @@ This allows swapping to FAISS/Chroma/Qdrant later without touching Memory caller
 
 from __future__ import annotations
 
+import json
 import os
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
@@ -40,14 +41,14 @@ class VectorStore(ABC):
 class VectorDBStore(VectorStore):
     """Adapter over the existing VectorDB class."""
 
-    def __init__(self, dim: int = 768):
-        self.db = VectorDB(dim=dim)
-        self.dim = dim
+    def __init__(self, dim: int = 768, db: Optional[VectorDB] = None):
+        self.db = db or VectorDB(dim=dim)
+        self.dim = self.db.dim
 
     def add(
         self, vector: np.ndarray, metadata: Dict[str, Any], text: Optional[str] = None
     ) -> str:
-        return self.db.add(vector=vector, metadata=metadata, text=text)
+        return self.db.add(embedding=vector, metadata=metadata, text=text or "")
 
     def search(self, query_vector: np.ndarray, top_k: int = 5) -> List[Dict[str, Any]]:
         return self.db.query(query_embedding=query_vector, top_k=top_k)
@@ -67,6 +68,20 @@ try:
     HAS_CHROMADB = True
 except Exception:
     HAS_CHROMADB = False
+
+
+def _chroma_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    normalized: Dict[str, Any] = {}
+    for key, value in metadata.items():
+        if isinstance(value, (dict, list, tuple)):
+            normalized[key] = json.dumps(value, separators=(",", ":"), sort_keys=True)
+        elif value is None:
+            normalized[key] = ""
+        elif isinstance(value, (str, int, float, bool)):
+            normalized[key] = value
+        else:
+            normalized[key] = str(value)
+    return normalized
 
 
 class ChromaVectorStore(VectorStore):
@@ -100,7 +115,7 @@ class ChromaVectorStore(VectorStore):
             import time
 
             uid = metadata.get("id") or f"mem_{int(time.time() * 1000)}"
-            meta = dict(metadata)
+            meta = _chroma_metadata(metadata)
             meta["text"] = text or ""
             self._coll.add(
                 ids=[uid],

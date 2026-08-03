@@ -183,7 +183,16 @@ int start_service(service_t *svc)
     svc->state = SERVICE_STARTING;
     pid_t pid = fork();
     if (pid == 0) {
-        /* Child process */
+        sigset_t unblocked;
+        struct sigaction default_action;
+
+        sigemptyset(&unblocked);
+        sigprocmask(SIG_SETMASK, &unblocked, NULL);
+        memset(&default_action, 0, sizeof(default_action));
+        default_action.sa_handler = SIG_DFL;
+        sigemptyset(&default_action.sa_mask);
+        sigaction(SIGPIPE, &default_action, NULL);
+
         if (svc->argc > 0) {
             execve(svc->exec_path, svc->argv, NULL);
         } else {
@@ -327,8 +336,9 @@ void reap_service_children(void)
                 printf("[init] %s exited (code %d)\n",
                        svc->name, svc->exit_code);
 
+                int failed = !WIFEXITED(status) || WEXITSTATUS(status) != 0;
                 if (svc->restart_policy == RESTART_ALWAYS ||
-                    (svc->restart_policy == RESTART_ON_FAILURE &&
+                    (svc->restart_policy == RESTART_ON_FAILURE && failed &&
                      svc->restart_count < svc->max_restarts)) {
                     svc->restart_count++;
                     printf("[init] auto-restarting %s\n", svc->name);
@@ -375,6 +385,22 @@ int load_services_from_config(const char *path)
 }
 
 /* Parse a single config line: name:priority:path[:arg1:arg2:...] */
+static int parse_priority(const char *text, service_priority_t *priority)
+{
+    char *end = NULL;
+    long value;
+
+    if (!text || !text[0] || !priority)
+        return -1;
+    errno = 0;
+    value = strtol(text, &end, 10);
+    if (errno == ERANGE || end == text || *end != '\0' ||
+        value < PRIORITY_CRITICAL || value > PRIORITY_USER)
+        return -1;
+    *priority = (service_priority_t)value;
+    return 0;
+}
+
 int parse_config_line(const char *line, service_t *svc)
 {
     if (!line || !svc)
@@ -394,12 +420,15 @@ int parse_config_line(const char *line, service_t *svc)
         token = strtok(NULL, ":");
     }
 
-    if (n < 3)
+    if (n < 3 || token != NULL || fields[0][0] == '\0' ||
+        strlen(fields[0]) >= MAX_SERVICE_NAME || fields[2][0] == '\0' ||
+        strlen(fields[2]) >= MAX_SERVICE_PATH)
         return -1;
 
-    strncpy(svc->name, fields[0], MAX_SERVICE_NAME - 1);
-    svc->priority = atoi(fields[1]);
-    strncpy(svc->exec_path, fields[2], MAX_SERVICE_PATH - 1);
+    if (parse_priority(fields[1], &svc->priority) != 0)
+        return -1;
+    strcpy(svc->name, fields[0]);
+    strcpy(svc->exec_path, fields[2]);
     svc->restart_policy = RESTART_ON_FAILURE;
     svc->max_restarts = 3;
 
