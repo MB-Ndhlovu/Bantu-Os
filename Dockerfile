@@ -39,6 +39,7 @@ COPY bantu_os/  ./bantu_os/
 COPY init/       ./init/
 COPY tests/      ./tests/
 COPY Makefile    ./
+COPY scripts/     ./scripts/
 COPY start.sh    ./
 COPY README.md    ./
 
