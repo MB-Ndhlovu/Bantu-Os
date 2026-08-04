@@ -2,19 +2,19 @@
 
 **This is the single source of truth for project status.** README, AGENTS.md, and the docs subdirectory all point here when they need a current snapshot. Edit this file last when a task changes project state.
 
-**Last Updated:** 2026-08-03
+**Last Updated:** 2026-08-04
 
 ---
 
 ## Current Phase
 
-**Phase 4 (CI, integrations, security reconciliation) in progress.**
+**Phase 4 (CI, integrations, security reconciliation) in progress. The first public pre-alpha release, `v0.1.0`, is prepared from the verified `main` baseline.**
 
 Working stack: Linux kernel → C init (PID 1) → Rust shell REPL → Python AI kernel + services. The canonical end-to-end demo boots the full stack and exercises the wired service bridge.
 
 ---
 
-## Verification — 2026-08-03
+## Verification — 2026-08-04
 
 | Gate | Result | Evidence |
 |---|---|---|
@@ -25,6 +25,7 @@ Working stack: Linux kernel → C init (PID 1) → Rust shell REPL → Python AI
 | Black | ✅ Pass | `python3 -m black --check bantu_os/ tests/` |
 | Full-stack demo | ✅ Pass | `bash scripts/demo.sh`, all scripted checks completed successfully |
 | Docker image | ⚠️ Pending runner | Local runner has neither Docker nor Podman; must be built on a Docker-capable runner |
+| GitHub Actions | ⚠️ Blocked externally | GitHub reports the repository account is locked due to a billing issue; local equivalent gates passed |
 
 The test suite emits 16 non-failing warnings: existing async-marker warnings, aiohttp application-key warnings in the new API test, socket-test coroutine warnings, and a constrained `/proc/vmstat` environment. They do not fail the gate.
 
@@ -32,7 +33,7 @@ The test suite emits 16 non-failing warnings: existing async-marker warnings, ai
 
 ## Security Review — 2026-08-03
 
-**Re-run result:** security reconciliation completed for this branch.
+**Re-run result:** security reconciliation completed for the release baseline.
 
 - Unix socket permissions hardened from world-readable/writable `0666` to owner-only `0600`.
 - API-key JSON persistence now uses an atomic temporary-file replacement and owner-only `0600` permissions.
