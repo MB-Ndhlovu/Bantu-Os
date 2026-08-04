@@ -7,6 +7,7 @@ Bantu-OS is a Linux-based, AI-native operating system that reimagines how humans
 > 🌍 *"The next great platform shift won't come from Silicon Valley. It will come from those who build for the realities of tomorrow."*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Release: v0.1.0](https://img.shields.io/badge/Release-v0.1.0-orange)](https://github.com/MB-Ndhlovu/Bantu-Os/releases/tag/v0.1.0)
 [![Status: Pre-alpha](https://img.shields.io/badge/Status-Pre--alpha-red)](README.md)
 [![Architecture: Linux-based](https://img.shields.io/badge/Arch-Linux--based-brightgreen)](README.md)
 [![Language: C + Rust + Python](https://img.shields.io/badge/Lang-C%2C%20Rust%2C%20Python-yellow)](README.md)
